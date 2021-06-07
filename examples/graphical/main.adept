@@ -1,0 +1,149 @@
+
+import basics
+import captain
+import where
+import "../../Box2D/box2d.adept"
+
+struct Box2DStuff (
+    gravity b2Vec2,
+    world b2World,
+    ground_body *b2Body,
+    ground_box b2PolygonShape,
+    body *b2Body,
+    dynamic_box b2PolygonShape,
+    bodies <*b2Body> List
+) {
+    func setup {
+        this.gravity = b2Vec2(0.0f, -10.0f)
+        b2World(&this.world, &this.gravity)
+
+        ground_bodydef b2BodyDef = b2BodyDef()
+        ground_bodydef.position.Set(0.0f, -10.0f)
+
+        this.ground_body = this.world.CreateBody(&ground_bodydef)
+
+        this.ground_box = b2PolygonShape()
+        this.ground_box.SetAsBox(50.0f, 10.0f)
+
+        this.ground_body.CreateFixture(&this.ground_box as *b2Shape, 0.0f)
+
+        bodydef b2BodyDef = b2BodyDef()
+        bodydef.type = b2_dynamicBody
+        bodydef.position.Set(0.0f, 4.0f)
+        this.body = this.world.CreateBody(&bodydef)
+
+        this.dynamic_box = b2PolygonShape()
+        this.dynamic_box.SetAsBox(1.0f, 1.0f)
+
+        fixturedef b2FixtureDef = b2FixtureDef()
+        fixturedef.shape = &this.dynamic_box as *b2Shape
+        fixturedef.density = 1.0f
+        fixturedef.friction = 0.3f
+        fixturedef.restitution = 0.005f
+
+        this.body.CreateFixture(&fixturedef)
+        this.bodies.add(this.body)
+    }
+
+    func step {
+        time_step float = 1.0f / 60.0f
+        velocity_iterations int = 6
+        position_iterations int = 2
+
+        this.world.Step(time_step, velocity_iterations, position_iterations)
+    }
+}
+
+box2dstuff Box2DStuff
+ground CaptTexture
+box CaptTexture
+
+func main {
+    print("Controls:")
+    print("Left Click  - Add box")
+    print("Right Click - Make boxes jump")
+
+    captOnSetup(func &onSetup)
+    captOnExit(func &onExit)
+    captOnStep(func &onStep)
+    captOnClick(func &onClick, true)
+    captOnDraw(func &onDraw)
+    captStart('Box2D Test', 640, 480, false)
+}
+
+func onSetup {
+    box2dstuff.setup()
+    ground = captTexture(where() + "ground.png", false)
+    box = captTexture(where() + "box.png", false)
+}
+
+func onExit {
+    ground.destroy()
+    box.destroy()
+}
+
+func onStep {
+    box2dstuff.step()
+}
+
+func onClick(mouse_x, mouse_y float, button int) {
+    if button != 1 {
+        force b2Vec2 = b2Vec2(0.0f, 50.0f)
+
+        each body *b2Body in box2dstuff.bodies,
+            body.ApplyLinearImpulseToCenter(&force, true)
+    } else {
+        bodydef b2BodyDef = b2BodyDef()
+        bodydef.type = b2_dynamicBody
+        //bodydef.position.Set(0.0f, 4.0f)
+        toB2Coords(mouse_x, mouse_y, undef new_x float, undef new_y float)
+        bodydef.position.Set(new_x, new_y)
+        body *b2Body = box2dstuff.world.CreateBody(&bodydef)
+
+        fixturedef b2FixtureDef = b2FixtureDef()
+        fixturedef.shape = &box2dstuff.dynamic_box as *b2Shape
+        fixturedef.density = 1.0f
+        fixturedef.friction = 0.3f
+        fixturedef.restitution = 0.005f
+
+        body.CreateFixture(&fixturedef)
+        box2dstuff.bodies.add(body)
+    }
+}
+
+define PPM = 8.0f
+
+func onDraw {
+    captClearColor(captColor(0.6f, 0.8f, 0.9f, 1.0f))
+
+    each body *b2Body in box2dstuff.bodies {
+        position *b2Vec2 = body.GetPosition()
+        drawTexture(box, position.x, position.y, 2.0f, 2.0f, body.GetAngle())
+    }
+    drawTexture(ground, 0.0f, -10.0f, 2.0f * 50.0f, 2.0f * 10.0f, 0.0f)
+}
+
+func drawTexture(texture POD CaptTexture, x, y, w, h, angle float){
+    toScreenCoords(x, y, undef xpos float, undef ypos float)
+    angle *= -1.0f
+    w *= PPM
+    h *= PPM
+
+    transformation POD Matrix4f = undef
+    transformation.identity()
+    transformation.translate(xpos, ypos, 0.0f)
+    transformation.rotate(angle, 0.0f, 0.0f, 1.0f)
+    transformation.scale(w, h, 1.0f)
+    transformation.translate(-0.5f, -0.5f, 0.0f)
+    captDrawTextureUsingModelAndTransformation(_captain_model, texture, transformation)
+}
+
+func toScreenCoords(in x, y float, out s2x, s2y *float) {
+    *s2x = x * PPM + captViewWidth() / 2.0f
+    *s2y = captViewHeight() - y * PPM - 64.0f
+}
+
+func toB2Coords(in x, y float, out b2x, b2y *float) {
+    *b2x = (x - captViewWidth() / 2.0f) / PPM
+    *b2y = -1.0f * (y + 64.0f - captViewHeight()) / PPM
+}

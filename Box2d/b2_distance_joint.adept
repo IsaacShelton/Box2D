@@ -1,0 +1,536 @@
+
+// Ported by Isaac Shelton from Erin Catto's Box2D @ 95f74a46c077825478f989df6a81003ca538c2c2
+
+// MIT License
+
+// Copyright (c) 2020-2021 Isaac Shelton
+
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
+import "b2_joint.adept"
+import "b2_body.adept"
+import "b2_draw.adept"
+import "b2_distance_joint.adept"
+import "b2_time_step.adept"
+
+// 1-D constrained system
+// m (v2 - v1) = lambda
+// v2 + (beta/h) * x1 + gamma * lambda = 0, gamma has units of inverse mass.
+// x2 = x1 + h * v2
+
+// 1-D mass-damper-spring system
+// m (v2 - v1) + h * d * v2 + h * k * 
+
+// C = norm(p2 - p1) - L
+// u = (p2 - p1) / norm(p2 - p1)
+// Cdot = dot(u, v2 + cross(w2, r2) - v1 - cross(w1, r1))
+// J = [-u -cross(r1, u) u cross(r2, u)]
+// K = J * invM * JT
+//   = invMass1 + invI1 * cross(r1, u)^2 + invMass2 + invI2 * cross(r2, u)^2
+
+struct b2DistanceJointDef (
+    struct b2JointDef,
+    
+    /// The local anchor point relative to bodyA's origin.
+	localAnchorA b2Vec2,
+
+	/// The local anchor point relative to bodyB's origin.
+	localAnchorB b2Vec2,
+
+	/// The rest length of this joint. Clamped to a stable minimum value.
+	length float,
+
+	/// Minimum length. Clamped to a stable minimum value.
+	minLength float,
+
+	/// Maximum length. Must be greater than or equal to the minimum length.
+	maxLength float,
+
+	/// The linear stiffness in N/m.
+	stiffness float,
+
+	/// The linear damping in N*s/m.
+	damping float
+) {
+    /// Initialize the bodies, anchors, and rest length using world space anchors.
+	/// The minimum and maximum lengths are set to the rest length.
+	func Initialize(in bA, bB *b2Body, in anchor1, anchor2 *b2Vec2) void {
+        this.bodyA = bA
+        this.bodyB = bB
+        this.localAnchorA = bA.GetLocalPoint(anchor1)
+        this.localAnchorB = bB.GetLocalPoint(anchor2)
+        d POD b2Vec2 = *anchor2 - *anchor1
+        this.length = b2Max(d.Length(), b2_linearSlop)
+        this.minLength = this.length
+        this.maxLength = this.length
+    }
+}
+
+func b2DistanceJointDef() b2DistanceJointDef {
+    djd POD b2DistanceJointDef = undef
+    *cast *b2JointDef &djd = b2JointDef()
+    djd.type = b2JointType::e_distanceJoint
+    djd.localAnchorA.Set(0.0f, 0.0f)
+    djd.localAnchorB.Set(0.0f, 0.0f)
+    djd.length = 1.0f
+    djd.minLength = 0.0f
+    djd.maxLength = FLT_MAX
+    djd.stiffness = 0.0f
+    djd.damping = 0.0f
+    return djd
+}
+
+/// A distance joint constrains two points on two bodies to remain at a fixed
+/// distance from each other. You can view this as a massless, rigid rod.
+struct b2DistanceJoint (
+    struct b2Joint,
+    
+    m_stiffness float,
+	m_damping float,
+	m_bias float,
+	m_length float,
+	m_minLength float,
+	m_maxLength float,
+
+	// Solver shared
+	m_localAnchorA b2Vec2,
+	m_localAnchorB b2Vec2,
+	m_gamma float,
+	m_impulse float,
+	m_lowerImpulse float,
+	m_upperImpulse float,
+
+	// Solver temp
+	m_indexA int,
+	m_indexB int,
+	m_u b2Vec2,
+	m_rA b2Vec2,
+	m_rB b2Vec2,
+	m_localCenterA b2Vec2,
+	m_localCenterB b2Vec2,
+	m_currentLength float,
+	m_invMassA float,
+	m_invMassB float,
+	m_invIA float,
+	m_invIB float,
+	m_softMass float,
+	m_mass float
+) {
+    // (override)
+    func GetAnchorA() b2Vec2 {
+        return this.m_bodyA.GetWorldPoint(&this.m_localAnchorA)
+    }
+
+    // (override)
+	func GetAnchorB() b2Vec2 {
+        return this.m_bodyB.GetWorldPoint(&this.m_localAnchorB)
+    }
+
+	/// Get the reaction force given the inverse time step.
+	/// Unit is N.
+    // (override)
+	func GetReactionForce(inv_dt float) b2Vec2 {
+        F POD b2Vec2 = inv_dt * (this.m_impulse + this.m_lowerImpulse - this.m_upperImpulse) * this.m_u
+	    return F
+    }
+
+	/// Get the reaction torque given the inverse time step.
+	/// Unit is N*m. This is always zero for a distance joint.
+    // (override)
+	func GetReactionTorque(_inv_dt float) float {
+        return 0.0f
+    }
+
+	/// The local anchor point relative to bodyA's origin.
+	func GetLocalAnchorA() *b2Vec2 {
+        return &this.m_localAnchorA
+    }
+
+	/// The local anchor point relative to bodyB's origin.
+	func GetLocalAnchorB() *b2Vec2 {
+        return &this.m_localAnchorB
+    }
+
+	/// Get the rest length
+	func GetLength() float {
+        return this.m_length
+    }
+
+	/// Set the rest length
+	/// @returns clamped rest length
+	func SetLength(length float) float {
+        this.m_impulse = 0.0f
+        this.m_length = b2Max(b2_linearSlop, length)
+        return this.m_length
+    }
+
+	/// Get the minimum length
+	func GetMinLength() float {
+        return this.m_minLength
+    }
+
+	/// Set the minimum length
+	/// @returns the clamped minimum length
+	func SetMinLength(minLength float) float {
+        this.m_lowerImpulse = 0.0f
+	    this.m_minLength = b2Clamp(minLength, b2_linearSlop, this.m_maxLength)
+	    return this.m_minLength
+    }
+
+	/// Get the maximum length
+	func GetMaxLength() float {
+        return this.m_maxLength
+    }
+
+	/// Set the maximum length
+	/// @returns the clamped maximum length
+	func SetMaxLength(maxLength float) float {
+        this.m_upperImpulse = 0.0f
+        this.m_maxLength = b2Max(maxLength, this.m_minLength)
+        return this.m_maxLength
+    }
+
+	/// Get the current length
+	func GetCurrentLength() float {
+        pA POD b2Vec2 = this.m_bodyA.GetWorldPoint(&this.m_localAnchorA)
+        pB POD b2Vec2 = this.m_bodyB.GetWorldPoint(&this.m_localAnchorB)
+        d POD b2Vec2 = pB - pA
+        length float = d.Length()
+        return length
+    }
+
+	/// Set/get the linear stiffness in N/m
+	func SetStiffness(stiffness float) void {
+        this.m_stiffness = stiffness
+    }
+    
+	func GetStiffness() float {
+        return this.m_stiffness
+    }
+
+	/// Set/get linear damping in N*s/m
+	func SetDamping(damping float) {
+        this.m_damping = damping
+    }
+
+	func GetDamping() float {
+        return this.m_damping
+    }
+
+	/// Dump joint to dmLog
+    // (override)
+	func Dump() void {
+        indexA int = this.m_bodyA.m_islandIndex
+        indexB int = this.m_bodyB.m_islandIndex
+
+        b2Dump('  b2DistanceJointDef jd;\n')
+        b2Dump('  jd.bodyA = bodies[%d];\n', indexA)
+        b2Dump('  jd.bodyB = bodies[%d];\n', indexB)
+        b2Dump('  jd.collideConnected = bool(%d);\n', this.m_collideConnected)
+        b2Dump('  jd.localAnchorA.Set(%hf, %hf);\n', this.m_localAnchorA.x, this.m_localAnchorA.y)
+        b2Dump('  jd.localAnchorB.Set(%hf, %hf);\n', this.m_localAnchorB.x, this.m_localAnchorB.y)
+        b2Dump('  jd.length = %hf;\n', this.m_length)
+        b2Dump('  jd.minLength = %hf;\n', this.m_minLength)
+        b2Dump('  jd.maxLength = %hf;\n', this.m_maxLength)
+        b2Dump('  jd.stiffness = %hf;\n', this.m_stiffness)
+        b2Dump('  jd.damping = %hf;\n', this.m_damping)
+        b2Dump('  joints[%d] = m_world->CreateJoint(&jd);\n', this.m_index)
+    }
+
+	///
+    // (override)
+	func Draw(draw *b2Draw) void {
+        xfA *b2Transform = this.m_bodyA.GetTransform()
+        xfB *b2Transform = this.m_bodyB.GetTransform()
+        pA POD b2Vec2 = b2Mul(xfA, this.m_localAnchorA)
+        pB POD b2Vec2 = b2Mul(xfB, this.m_localAnchorB)
+
+        axis POD b2Vec2 = pB - pA
+        // (unused) length float = axis.Normalize()
+        
+        c1 POD b2Color = POD b2Color(0.7f, 0.7f, 0.7f)
+        c2 POD b2Color = POD b2Color(0.3f, 0.9f, 0.3f)
+        c3 POD b2Color = POD b2Color(0.9f, 0.3f, 0.3f)
+        c4 POD b2Color = POD b2Color(0.4f, 0.4f, 0.4f)
+
+        draw.DrawSegment(&pA, &pB, &c4)
+        
+        pRest POD b2Vec2 = pA + this.m_length * axis
+        draw.DrawPoint(&pRest, 8.0f, &c1)
+
+        if this.m_minLength != this.m_maxLength
+        {
+            if this.m_minLength > b2_linearSlop {
+                pMin POD b2Vec2 = pA + this.m_minLength * axis
+                draw.DrawPoint(&pMin, 4.0f, &c2)
+            }
+
+            if this.m_maxLength < FLT_MAX {
+                pMax POD b2Vec2 = pA + this.m_maxLength * axis
+                draw.DrawPoint(&pMax, 4.0f, &c3)
+            }
+        }
+    }
+
+    // --------------------------------------------------------
+
+    // (override)
+    func InitVelocityConstraints(data *b2SolverData) void {
+        this.m_indexA = this.m_bodyA.m_islandIndex
+        this.m_indexB = this.m_bodyB.m_islandIndex
+        this.m_localCenterA = this.m_bodyA.m_sweep.localCenter
+        this.m_localCenterB = this.m_bodyB.m_sweep.localCenter
+        this.m_invMassA = this.m_bodyA.m_invMass
+        this.m_invMassB = this.m_bodyB.m_invMass
+        this.m_invIA = this.m_bodyA.m_invI
+        this.m_invIB = this.m_bodyB.m_invI
+
+        cA POD b2Vec2 = data.positions[this.m_indexA].c
+        aA float = data.positions[this.m_indexA].a
+        vA POD b2Vec2 = data.velocities[this.m_indexA].v
+        wA float = data.velocities[this.m_indexA].w
+
+        cB POD b2Vec2 = data.positions[this.m_indexB].c
+        aB float = data.positions[this.m_indexB].a
+        vB POD b2Vec2 = data.velocities[this.m_indexB].v
+        wB float = data.velocities[this.m_indexB].w
+
+        qA POD b2Rot = b2Rot(aA)
+        qB POD b2Rot = b2Rot(aB)
+
+        this.m_rA = b2Mul(qA, this.m_localAnchorA - this.m_localCenterA)
+        this.m_rB = b2Mul(qB, this.m_localAnchorB - this.m_localCenterB)
+        this.m_u = cB + this.m_rB - cA - this.m_rA
+
+        // Handle singularity.
+        this.m_currentLength = this.m_u.Length()
+        if this.m_currentLength > b2_linearSlop {
+            this.m_u.MultiplyAssign(1.0f / this.m_currentLength)
+        } else {
+            this.m_u.Set(0.0f, 0.0f)
+            this.m_mass = 0.0f
+            this.m_impulse = 0.0f
+            this.m_lowerImpulse = 0.0f
+            this.m_upperImpulse = 0.0f
+        }
+
+        crAu float = b2Cross(this.m_rA, this.m_u)
+        crBu float = b2Cross(this.m_rB, this.m_u)
+        invMass float = this.m_invMassA + this.m_invIA * crAu * crAu + this.m_invMassB + this.m_invIB * crBu * crBu
+        this.m_mass = invMass != 0.0f ? 1.0f / invMass : 0.0f
+
+        if this.m_stiffness > 0.0f && this.m_minLength < this.m_maxLength {
+            // soft
+            C float = this.m_currentLength - this.m_length
+
+            d float = this.m_damping
+            k float = this.m_stiffness
+
+            // magic formulas
+            h float = data.step.dt
+
+            // gamma = 1 / (h * (d + h * k))
+            // the extra factor of h in the denominator is since the lambda is an impulse, not a force
+            this.m_gamma = h * (d + h * k)
+            this.m_gamma = this.m_gamma != 0.0f ? 1.0f / this.m_gamma : 0.0f
+            this.m_bias = C * h * k * this.m_gamma
+
+            invMass += this.m_gamma
+            this.m_softMass = invMass != 0.0f ? 1.0f / invMass : 0.0f
+        } else {
+            // rigid
+            this.m_gamma = 0.0f
+            this.m_bias = 0.0f
+            this.m_softMass = this.m_mass
+        }
+
+        if data.step.warmStarting {
+            // Scale the impulse to support a variable time step.
+            this.m_impulse *= data.step.dtRatio
+            this.m_lowerImpulse *= data.step.dtRatio
+            this.m_upperImpulse *= data.step.dtRatio
+
+            P POD b2Vec2 = (this.m_impulse + this.m_lowerImpulse - this.m_upperImpulse) * this.m_u
+            vA.SubtractAssign(this.m_invMassA * P)
+            wA -= this.m_invIA * b2Cross(this.m_rA, P)
+            vB.AddAssign(this.m_invMassB * P)
+            wB += this.m_invIB * b2Cross(this.m_rB, P)
+        } else {
+            this.m_impulse = 0.0f
+        }
+
+        data.velocities[this.m_indexA].v = vA
+        data.velocities[this.m_indexA].w = wA
+        data.velocities[this.m_indexB].v = vB
+        data.velocities[this.m_indexB].w = wB
+    }
+
+    // (override)
+	func SolveVelocityConstraints(data *b2SolverData) void {
+        vA POD b2Vec2 = data.velocities[this.m_indexA].v
+        wA float = data.velocities[this.m_indexA].w
+        vB POD b2Vec2 = data.velocities[this.m_indexB].v
+        wB float = data.velocities[this.m_indexB].w
+
+        if this.m_minLength < this.m_maxLength {
+            if this.m_stiffness > 0.0f {
+                // Cdot = dot(u, v + cross(w, r))
+                vpA POD b2Vec2 = vA + b2Cross(wA, this.m_rA)
+                vpB POD b2Vec2 = vB + b2Cross(wB, this.m_rB)
+                Cdot float = b2Dot(this.m_u, vpB - vpA)
+
+                impulse float = (0.0f - this.m_softMass) * (Cdot + this.m_bias + this.m_gamma * this.m_impulse)
+                this.m_impulse += impulse
+
+                P POD b2Vec2 = impulse * this.m_u
+                vA.SubtractAssign(this.m_invMassA * P)
+                wA -= this.m_invIA * b2Cross(this.m_rA, P)
+                vB.AddAssign(this.m_invMassB * P)
+                wB += this.m_invIB * b2Cross(this.m_rB, P)
+            }
+
+            // lower
+            if true {
+                C float = this.m_currentLength - this.m_minLength
+                bias float = b2Max(0.0f, C) * data.step.inv_dt
+
+                vpA POD b2Vec2 = vA + b2Cross(wA, this.m_rA)
+                vpB POD b2Vec2 = vB + b2Cross(wB, this.m_rB)
+                Cdot float = b2Dot(this.m_u, vpB - vpA)
+
+                impulse float = (0.0f - this.m_mass) * (Cdot + bias)
+                oldImpulse float = this.m_lowerImpulse
+                this.m_lowerImpulse = b2Max(0.0f, this.m_lowerImpulse + impulse)
+                impulse = this.m_lowerImpulse - oldImpulse
+                P POD b2Vec2 = impulse * this.m_u
+
+                vA.SubtractAssign(this.m_invMassA * P)
+                wA -= this.m_invIA * b2Cross(this.m_rA, P)
+                vB.AddAssign(this.m_invMassB * P)
+                wB += this.m_invIB * b2Cross(this.m_rB, P)
+            }
+
+            // upper
+            if true {
+                C float = this.m_maxLength - this.m_currentLength
+                bias float = b2Max(0.0f, C) * data.step.inv_dt
+
+                vpA POD b2Vec2 = vA + b2Cross(wA, this.m_rA)
+                vpB POD b2Vec2 = vB + b2Cross(wB, this.m_rB)
+                Cdot float = b2Dot(this.m_u, vpA - vpB)
+
+                impulse float = (0.0f - this.m_mass) * (Cdot + bias)
+                oldImpulse float = this.m_upperImpulse
+                this.m_upperImpulse = b2Max(0.0f, this.m_upperImpulse + impulse)
+                impulse = this.m_upperImpulse - oldImpulse
+                P POD b2Vec2 = (0.0f - impulse) * this.m_u
+
+                vA.SubtractAssign(this.m_invMassA * P)
+                wA -= this.m_invIA * b2Cross(this.m_rA, P)
+                vB.AddAssign(this.m_invMassB * P)
+                wB += this.m_invIB * b2Cross(this.m_rB, P)
+            }
+        } else {
+            // Equal limits
+
+            // Cdot = dot(u, v + cross(w, r))
+            vpA POD b2Vec2 = vA + b2Cross(wA, this.m_rA)
+            vpB POD b2Vec2 = vB + b2Cross(wB, this.m_rB)
+            Cdot float = b2Dot(this.m_u, vpB - vpA)
+
+            impulse float = (0.0f - this.m_mass) * Cdot
+            this.m_impulse += impulse
+
+            P POD b2Vec2 = impulse * this.m_u
+            vA.SubtractAssign(this.m_invMassA * P)
+            wA -= this.m_invIA * b2Cross(this.m_rA, P)
+            vB.AddAssign(this.m_invMassB * P)
+            wB += this.m_invIB * b2Cross(this.m_rB, P)
+        }
+
+        data.velocities[this.m_indexA].v = vA
+        data.velocities[this.m_indexA].w = wA
+        data.velocities[this.m_indexB].v = vB
+        data.velocities[this.m_indexB].w = wB
+    }
+
+    // (override)
+	func SolvePositionConstraints(data *b2SolverData) bool {
+        cA POD b2Vec2 = data.positions[this.m_indexA].c
+        aA float = data.positions[this.m_indexA].a
+        cB POD b2Vec2 = data.positions[this.m_indexB].c
+        aB float = data.positions[this.m_indexB].a
+
+        qA POD b2Rot = b2Rot(aA)
+        qB POD b2Rot = b2Rot(aB)
+
+        rA POD b2Vec2 = b2Mul(qA, this.m_localAnchorA - this.m_localCenterA)
+        rB POD b2Vec2 = b2Mul(qB, this.m_localAnchorB - this.m_localCenterB)
+        u POD b2Vec2 = cB + rB - cA - rA
+
+        length float = u.Normalize()
+        C float = undef
+
+        if this.m_minLength == this.m_maxLength {
+            C = length - this.m_minLength
+        } else if length < this.m_minLength {
+            C = length - this.m_minLength
+        } else if this.m_maxLength < length {
+            C = length - this.m_maxLength
+        } else {
+            return true
+        }
+
+        impulse float = (0.0f - this.m_mass) * C
+        P POD b2Vec2 = impulse * u
+
+        cA.SubtractAssign(this.m_invMassA * P)
+        aA -= this.m_invIA * b2Cross(rA, P)
+        cB.AddAssign(this.m_invMassB * P)
+        aB += this.m_invIB * b2Cross(rB, P)
+
+        data.positions[this.m_indexA].c = cA
+        data.positions[this.m_indexA].a = aA
+        data.positions[this.m_indexB].c = cB
+        data.positions[this.m_indexB].a = aB
+
+        return b2Abs(C) < b2_linearSlop
+    }
+}
+
+func b2Joint\CreateRaw\b2DistanceJoint(out uninitialized *b2DistanceJoint, in definition *b2DistanceJointDef) *b2DistanceJoint {
+    b2Joint(uninitialized, definition as *b2JointDef)
+
+    uninitialized.m_localAnchorA = definition.localAnchorA
+	uninitialized.m_localAnchorB = definition.localAnchorB
+	uninitialized.m_length = b2Max(definition.length, b2_linearSlop)
+	uninitialized.m_minLength = b2Max(definition.minLength, b2_linearSlop)
+	uninitialized.m_maxLength = b2Max(definition.maxLength, uninitialized.m_minLength)
+	uninitialized.m_stiffness = definition.stiffness
+	uninitialized.m_damping = definition.damping
+
+	uninitialized.m_gamma = 0.0f
+	uninitialized.m_bias = 0.0f
+	uninitialized.m_impulse = 0.0f
+	uninitialized.m_lowerImpulse = 0.0f
+	uninitialized.m_upperImpulse = 0.0f
+	uninitialized.m_currentLength = 0.0f
+
+    return uninitialized
+}

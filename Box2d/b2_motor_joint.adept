@@ -1,0 +1,374 @@
+
+// Ported by Isaac Shelton from Erin Catto's Box2D @ 95f74a46c077825478f989df6a81003ca538c2c2
+
+// MIT License
+
+// Copyright (c) 2020-2021 Isaac Shelton
+
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
+import "b2_joint.adept"
+
+// Point-to-point constraint
+// Cdot = v2 - v1
+//      = v2 + cross(w2, r2) - v1 - cross(w1, r1)
+// J = [-I -r1_skew I r2_skew ]
+// Identity used:
+// w k % (rx i + ry j) = w * (-ry i + rx j)
+//
+// r1 = offset - c1
+// r2 = -c2
+
+// Angle constraint
+// Cdot = w2 - w1
+// J = [0 0 -1 0 0 1]
+// K = invI1 + invI2
+
+/// Motor joint definition.
+struct b2MotorJointDef (
+    struct b2JointDef,
+
+    /// Position of bodyB minus the position of bodyA, in bodyA's frame, in meters.
+	linearOffset b2Vec2,
+
+	/// The bodyB angle minus bodyA angle in radians.
+	angularOffset float,
+
+	/// The maximum motor force in N.
+	maxForce float,
+
+	/// The maximum motor torque in N-m.
+	maxTorque float,
+
+	/// Position correction factor in the range [0,1].
+	correctionFactor float
+) {
+    /// Initialize the bodies and offsets using the current transforms.
+	func Initialize(bA, bB *b2Body) void {
+        this.bodyA = bA
+		this.bodyB = bB
+		this.linearOffset = bA.GetLocalPoint(bB.GetPosition())
+		angleA float = bA.GetAngle()
+		angleB float = bB.GetAngle()
+		this.angularOffset = angleB - angleA
+    }
+}
+
+func b2MotorJointDef() b2MotorJointDef {
+    mjd POD b2MotorJointDef = undef
+    *cast *b2JointDef &mjd = b2JointDef()
+    mjd.type = b2JointType::e_motorJoint
+    mjd.linearOffset.SetZero()
+    mjd.angularOffset = 0.0f
+    mjd.maxForce = 1.0f
+    mjd.maxTorque = 1.0f
+    mjd.correctionFactor = 0.3f
+    return mjd
+}
+
+/// A motor joint is used to control the relative motion
+/// between two bodies. A typical usage is to control the movement
+/// of a dynamic body with respect to the ground.
+struct b2MotorJoint (
+    struct b2Joint,
+
+    // Solver shared
+	m_linearOffset b2Vec2,
+	m_angularOffset float,
+	m_linearImpulse b2Vec2,
+	m_angularImpulse float,
+	m_maxForce float,
+	m_maxTorque float,
+	m_correctionFactor float,
+
+	// Solver temp
+	m_indexA int,
+	m_indexB int,
+	m_rA b2Vec2,
+	m_rB b2Vec2,
+	m_localCenterA b2Vec2,
+	m_localCenterB b2Vec2,
+	m_linearError b2Vec2,
+	m_angularError float,
+	m_invMassA float,
+	m_invMassB float,
+	m_invIA float,
+	m_invIB float,
+	m_linearMass b2Mat22,
+	m_angularMass float
+) {
+    // (override)
+    func GetAnchorA() b2Vec2 {
+        return *this.m_bodyA.GetPosition()
+    }
+
+    // (override)
+	func GetAnchorB() b2Vec2 {
+        return *this.m_bodyB.GetPosition()
+    }
+
+	// (override)
+    func GetReactionForce(inv_dt float) b2Vec2 {
+        return this.m_linearImpulse * inv_dt
+    }
+
+	// (override)
+    func GetReactionTorque(inv_dt float) float {
+        return inv_dt * this.m_angularImpulse
+    }
+
+	/// Set/get the target linear offset, in frame A, in meters.
+	func SetLinearOffset(in linearOffset *b2Vec2) void {
+		if linearOffset.x != this.m_linearOffset.x || linearOffset.y != this.m_linearOffset.y {
+			this.m_bodyA.SetAwake(true)
+			this.m_bodyB.SetAwake(true)
+			this.m_linearOffset = *linearOffset
+		}
+    }
+    
+    func GetLinearOffset() *b2Vec2 {
+		return &this.m_linearOffset
+    }
+
+	/// Set/get the target angular offset, in radians.
+	func SetAngularOffset(angularOffset float) void {
+		if angularOffset != this.m_angularOffset {
+			this.m_bodyA.SetAwake(true)
+			this.m_bodyB.SetAwake(true)
+			this.m_angularOffset = angularOffset
+		}
+    }
+
+	func GetAngularOffset() float {
+		return this.m_angularOffset
+    }
+
+	/// Set the maximum friction force in N.
+	func SetMaxForce(force float) void {
+		b2Assert(b2IsValid(force) && force >= 0.0f)
+		this.m_maxForce = force
+    }
+
+	/// Get the maximum friction force in N.
+	func GetMaxForce() float {
+		return this.m_maxForce
+    }
+
+	/// Set the maximum friction torque in N*m.
+	func SetMaxTorque(torque float) void {
+        b2Assert(b2IsValid(torque) && torque >= 0.0f)
+		this.m_maxTorque = torque
+    }
+
+	/// Get the maximum friction torque in N*m.
+	func GetMaxTorque() float {
+		return this.m_maxTorque
+    }
+
+	/// Set the position correction factor in the range [0,1].
+	func SetCorrectionFactor(factor float) void {
+		b2Assert(b2IsValid(factor) && 0.0f <= factor && factor <= 1.0f)
+		this.m_correctionFactor = factor
+    }
+
+	/// Get the position correction factor in the range [0,1].
+	func GetCorrectionFactor() float {
+        return this.m_correctionFactor
+    }
+
+	/// Dump to b2Log
+    // (override)
+	func Dump() void {
+		indexA int = this.m_bodyA.m_islandIndex
+		indexB int = this.m_bodyB.m_islandIndex
+
+		b2Dump('  b2MotorJointDef jd;\n')
+		b2Dump('  jd.bodyA = bodies[%d];\n', indexA)
+		b2Dump('  jd.bodyB = bodies[%d];\n', indexB)
+		b2Dump('  jd.collideConnected = bool(%d);\n', this.m_collideConnected)
+		b2Dump('  jd.linearOffset.Set(%hf, %hf);\n', this.m_linearOffset.x, this.m_linearOffset.y)
+		b2Dump('  jd.angularOffset = %hf;\n', this.m_angularOffset)
+		b2Dump('  jd.maxForce = %hf;\n', this.m_maxForce)
+		b2Dump('  jd.maxTorque = %hf;\n', this.m_maxTorque)
+		b2Dump('  jd.correctionFactor = %hf;\n', this.m_correctionFactor)
+		b2Dump('  joints[%d] = m_world->CreateJoint(&jd);\n', this.m_index)
+    }
+
+    // --------------------------------------------------------
+
+    // (override)
+    func InitVelocityConstraints(in data *b2SolverData) void {
+		this.m_indexA = this.m_bodyA.m_islandIndex
+		this.m_indexB = this.m_bodyB.m_islandIndex
+		this.m_localCenterA = this.m_bodyA.m_sweep.localCenter
+		this.m_localCenterB = this.m_bodyB.m_sweep.localCenter
+		this.m_invMassA = this.m_bodyA.m_invMass
+		this.m_invMassB = this.m_bodyB.m_invMass
+		this.m_invIA = this.m_bodyA.m_invI
+		this.m_invIB = this.m_bodyB.m_invI
+
+		cA POD b2Vec2 = data.positions[this.m_indexA].c
+		aA float = data.positions[this.m_indexA].a
+		vA POD b2Vec2 = data.velocities[this.m_indexA].v
+		wA float = data.velocities[this.m_indexA].w
+
+		cB POD b2Vec2 = data.positions[this.m_indexB].c
+		aB float = data.positions[this.m_indexB].a
+		vB POD b2Vec2 = data.velocities[this.m_indexB].v
+		wB float = data.velocities[this.m_indexB].w
+
+		qA POD b2Rot = POD b2Rot(aA)
+        qB POD b2Rot = POD b2Rot(aB)
+
+		// Compute the effective mass matrix.
+		this.m_rA = b2Mul(qA, this.m_linearOffset - this.m_localCenterA)
+		this.m_rB = b2Mul(qB, this.m_localCenterB.Negated())
+
+		// J = [-I -r1_skew I r2_skew]
+		// r_skew = [-ry rx]
+
+		// Matlab
+		// K = [ mA+r1y^2*iA+mB+r2y^2*iB,  -r1y*iA*r1x-r2y*iB*r2x,          -r1y*iA-r2y*iB]
+		//     [  -r1y*iA*r1x-r2y*iB*r2x, mA+r1x^2*iA+mB+r2x^2*iB,           r1x*iA+r2x*iB]
+		//     [          -r1y*iA-r2y*iB,           r1x*iA+r2x*iB,                   iA+iB]
+
+		mA float = this.m_invMassA
+		mB float = this.m_invMassB
+		iA float = this.m_invIA
+		iB float = this.m_invIB
+
+		// Upper 2 by 2 of K for point to point
+		K POD b2Mat22 = undef
+		K.ex.x = mA + mB + iA * this.m_rA.y * this.m_rA.y + iB * this.m_rB.y * this.m_rB.y
+		K.ex.y = -1.0f * iA * this.m_rA.x * this.m_rA.y - iB * this.m_rB.x * this.m_rB.y
+		K.ey.x = K.ex.y
+		K.ey.y = mA + mB + iA * this.m_rA.x * this.m_rA.x + iB * this.m_rB.x * this.m_rB.x
+
+		this.m_linearMass = K.GetInverse()
+		this.m_angularMass = iA + iB
+
+		if this.m_angularMass > 0.0f {
+			this.m_angularMass = 1.0f / this.m_angularMass
+		}
+
+		this.m_linearError = cB + this.m_rB - cA - this.m_rA
+		this.m_angularError = aB - aA - this.m_angularOffset
+
+		if data.step.warmStarting {
+			// Scale impulses to support a variable time step.
+			this.m_linearImpulse.MultiplyAssign(data.step.dtRatio)
+			this.m_angularImpulse *= data.step.dtRatio
+
+			P POD b2Vec2 = POD b2Vec2(this.m_linearImpulse.x, this.m_linearImpulse.y)
+			vA.SubtractAssign(P * mA)
+			wA -= iA * (b2Cross(this.m_rA, P) + this.m_angularImpulse)
+			vB.AddAssign(P * mB)
+			wB += iB * (b2Cross(this.m_rB, P) + this.m_angularImpulse)
+		} else {
+			this.m_linearImpulse.SetZero()
+			this.m_angularImpulse = 0.0f
+		}
+
+		data.velocities[this.m_indexA].v = vA
+		data.velocities[this.m_indexA].w = wA
+		data.velocities[this.m_indexB].v = vB
+		data.velocities[this.m_indexB].w = wB
+    }
+
+	// (override)
+    func SolveVelocityConstraints(in data *b2SolverData) void {
+		vA POD b2Vec2 = data.velocities[this.m_indexA].v
+		wA float = data.velocities[this.m_indexA].w
+		vB POD b2Vec2 = data.velocities[this.m_indexB].v
+		wB float = data.velocities[this.m_indexB].w
+
+		mA float = this.m_invMassA
+		mB float = this.m_invMassB
+		iA float = this.m_invIA
+		iB float = this.m_invIB
+
+		h float = data.step.dt
+		inv_h float = data.step.inv_dt
+
+		// Solve angular friction
+		if true {
+			Cdot float = wB - wA + inv_h * this.m_correctionFactor * this.m_angularError
+			impulse float = -1.0f * this.m_angularMass * Cdot
+
+			oldImpulse float = this.m_angularImpulse
+			maxImpulse float = h * this.m_maxTorque
+			this.m_angularImpulse = b2Clamp(this.m_angularImpulse + impulse, -1.0f * maxImpulse, maxImpulse)
+			impulse = this.m_angularImpulse - oldImpulse
+
+			wA -= iA * impulse
+			wB += iB * impulse
+		}
+
+		// Solve linear friction
+		if true {
+			Cdot POD b2Vec2 = vB + b2Cross(wB, this.m_rB) - vA - b2Cross(wA, this.m_rA) + inv_h * this.m_correctionFactor * this.m_linearError
+
+			impulse POD b2Vec2 = POD b2Mul(this.m_linearMass, Cdot).Negated()
+			oldImpulse POD b2Vec2 = POD this.m_linearImpulse
+			this.m_linearImpulse.AddAssign(impulse)
+
+			maxImpulse float = h * this.m_maxForce
+
+			if this.m_linearImpulse.LengthSquared() > maxImpulse * maxImpulse {
+				this.m_linearImpulse.Normalize()
+				this.m_linearImpulse = this.m_linearImpulse * maxImpulse
+			}
+
+			impulse = this.m_linearImpulse - oldImpulse
+
+			vA.SubtractAssign(impulse * mA)
+			wA -= iA * b2Cross(this.m_rA, impulse)
+
+			vB.AddAssign(impulse * mB)
+			wB += iB * b2Cross(this.m_rB, impulse)
+		}
+
+		data.velocities[this.m_indexA].v = vA
+		data.velocities[this.m_indexA].w = wA
+		data.velocities[this.m_indexB].v = vB
+		data.velocities[this.m_indexB].w = wB
+    }
+
+	// (override)
+    func SolvePositionConstraints(in _data *b2SolverData) bool {
+		return true
+    }
+}
+
+
+func b2Joint\CreateRaw\b2MotorJoint(out uninitialized *b2MotorJoint, in definition *b2MotorJointDef) *b2MotorJoint {
+    b2Joint(uninitialized, definition as *b2JointDef)
+
+    uninitialized.m_linearOffset = definition.linearOffset
+	uninitialized.m_angularOffset = definition.angularOffset
+
+	uninitialized.m_linearImpulse.SetZero()
+	uninitialized.m_angularImpulse = 0.0f
+
+	uninitialized.m_maxForce = definition.maxForce
+	uninitialized.m_maxTorque = definition.maxTorque
+	uninitialized.m_correctionFactor = definition.correctionFactor
+
+    return uninitialized
+}
