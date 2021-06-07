@@ -1,0 +1,775 @@
+
+// Ported by Isaac Shelton from Erin Catto's Box2D @ 95f74a46c077825478f989df6a81003ca538c2c2
+
+// MIT License
+
+// Copyright (c) 2020-2021 Isaac Shelton
+
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
+// Linear constraint (point-to-line)
+// d = pB - pA = xB + rB - xA - rA
+// C = dot(ay, d)
+// Cdot = dot(d, cross(wA, ay)) + dot(ay, vB + cross(wB, rB) - vA - cross(wA, rA))
+//      = -dot(ay, vA) - dot(cross(d + rA, ay), wA) + dot(ay, vB) + dot(cross(rB, ay), vB)
+// J = [-ay, -cross(d + rA, ay), ay, cross(rB, ay)]
+
+// Spring linear constraint
+// C = dot(ax, d)
+// Cdot = = -dot(ax, vA) - dot(cross(d + rA, ax), wA) + dot(ax, vB) + dot(cross(rB, ax), vB)
+// J = [-ax -cross(d+rA, ax) ax cross(rB, ax)]
+
+// Motor rotational constraint
+// Cdot = wB - wA
+// J = [0 0 -1 0 0 1]
+
+import "b2_joint.adept"
+
+struct b2WheelJointDef (
+    struct b2JointDef,
+
+    /// The local anchor point relative to bodyA's origin.
+	localAnchorA b2Vec2,
+
+	/// The local anchor point relative to bodyB's origin.
+	localAnchorB b2Vec2,
+
+	/// The local translation axis in bodyA.
+	localAxisA b2Vec2,
+
+	/// Enable/disable the joint limit.
+	enableLimit bool,
+
+	/// The lower translation limit, usually in meters.
+	lowerTranslation float,
+
+	/// The upper translation limit, usually in meters.
+	upperTranslation float,
+
+	/// Enable/disable the joint motor.
+	enableMotor bool,
+
+	/// The maximum motor torque, usually in N-m.
+	maxMotorTorque float,
+
+	/// The desired motor speed in radians per second.
+	motorSpeed float,
+
+	/// Suspension stiffness. Typically in units N/m.
+	stiffness float,
+
+	/// Suspension damping. Typically in units of N*s/m.
+	damping float
+) {
+    /// Initialize the bodies, anchors, axis, and reference angle using the world
+	/// anchor and world axis.
+	func Initialize(bodyA, bodyB *b2Body, in anchor, axis *b2Vec2) void {
+        this.bodyA = bodyA
+        this.bodyB = bodyB
+        this.localAnchorA = bodyA.GetLocalPoint(anchor)
+        this.localAnchorB = bodyB.GetLocalPoint(anchor)
+        this.localAxisA = bodyA.GetLocalVector(axis)
+    }
+}
+
+func b2WheelJointDef() b2WheelJointDef {
+    wjd POD b2WheelJointDef = undef
+    *cast *b2JointDef &wjd = b2JointDef()
+    wjd.type = b2JointType::e_wheelJoint
+    wjd.localAnchorA.SetZero()
+    wjd.localAnchorB.SetZero()
+    wjd.localAxisA.Set(1.0f, 0.0f)
+    wjd.enableLimit = false
+    wjd.lowerTranslation = 0.0f
+    wjd.upperTranslation = 0.0f
+    wjd.enableMotor = false
+    wjd.maxMotorTorque = 0.0f
+    wjd.motorSpeed = 0.0f
+    wjd.stiffness = 0.0f
+    wjd.damping = 0.0f
+    return wjd
+}
+
+/// A wheel joint. This joint provides two degrees of freedom: translation
+/// along an axis fixed in bodyA and rotation in the plane. In other words, it is a point to
+/// line constraint with a rotational motor and a linear spring/damper. The spring/damper is
+/// initialized upon creation. This joint is designed for vehicle suspensions.
+struct b2WheelJoint (
+    struct b2Joint,
+
+    m_localAnchorA b2Vec2,
+	m_localAnchorB b2Vec2,
+	m_localXAxisA b2Vec2,
+	m_localYAxisA b2Vec2,
+
+	m_impulse float,
+	m_motorImpulse float,
+	m_springImpulse float,
+
+	m_lowerImpulse float,
+	m_upperImpulse float,
+	m_translation float,
+	m_lowerTranslation float,
+	m_upperTranslation float,
+
+	m_maxMotorTorque float,
+	m_motorSpeed float,
+
+	m_enableLimit bool,
+	m_enableMotor bool,
+
+	m_stiffness float,
+	m_damping float,
+
+	// Solver temp
+	m_indexA int,
+	m_indexB int,
+	m_localCenterA b2Vec2,
+	m_localCenterB b2Vec2,
+	m_invMassA float,
+	m_invMassB float,
+	m_invIA float,
+	m_invIB float,
+
+	m_ax, m_ay b2Vec2,
+	m_sAx, m_sBx float,
+	m_sAy, m_sBy float,
+
+	m_mass float,
+	m_motorMass float,
+	m_axialMass float,
+	m_springMass float,
+
+	m_bias float,
+	m_gamma float
+) {
+    // (override)
+    func GetAnchorA() b2Vec2 {
+        return this.m_bodyA.GetWorldPoint(&this.m_localAnchorA)
+    }
+
+	// (override)
+    func GetAnchorB() b2Vec2 {
+        return this.m_bodyB.GetWorldPoint(&this.m_localAnchorB)
+    }
+
+	// (override)
+    func GetReactionForce(inv_dt float) b2Vec2 {
+        return inv_dt * (this.m_ay * this.m_impulse + this.m_ax * (this.m_springImpulse + this.m_lowerImpulse - this.m_upperImpulse))
+    }
+
+	// (override)
+    func GetReactionTorque(inv_dt float) float {
+        return inv_dt * this.m_motorImpulse
+    }
+
+	/// The local anchor point relative to bodyA's origin.
+	func GetLocalAnchorA() *b2Vec2 { return &this.m_localAnchorA; }
+
+	/// The local anchor point relative to bodyB's origin.
+	func GetLocalAnchorB() *b2Vec2  { return &this.m_localAnchorB; }
+
+	/// The local joint axis relative to bodyA.
+	func GetLocalAxisA() *b2Vec2 { return &this.m_localXAxisA; }
+
+	/// Get the current joint translation, usually in meters.
+	func GetJointTranslation() float {
+        bA *b2Body = this.m_bodyA
+        bB *b2Body = this.m_bodyB
+
+        pA POD b2Vec2 = POD bA.GetWorldPoint(&this.m_localAnchorA)
+        pB POD b2Vec2 = POD bB.GetWorldPoint(&this.m_localAnchorB)
+        d POD b2Vec2 = POD pB - pA
+        axis POD b2Vec2 = POD bA.GetWorldVector(&this.m_localXAxisA)
+
+        translation float = b2Dot(d, axis)
+        return translation
+    }
+
+	/// Get the current joint linear speed, usually in meters per second.
+	func GetJointLinearSpeed() float {
+        bA *b2Body = this.m_bodyA
+        bB *b2Body = this.m_bodyB
+
+        rA POD b2Vec2 = POD b2Mul(bA.m_xf.q, this.m_localAnchorA - bA.m_sweep.localCenter)
+        rB POD b2Vec2 = POD b2Mul(bB.m_xf.q, this.m_localAnchorB - bB.m_sweep.localCenter)
+        p1 POD b2Vec2 = POD bA.m_sweep.c + rA
+        p2 POD b2Vec2 = POD bB.m_sweep.c + rB
+        d POD b2Vec2 = POD p2 - p1
+        axis POD b2Vec2 = POD b2Mul(bA.m_xf.q, this.m_localXAxisA)
+
+        vA POD b2Vec2 = bA.m_linearVelocity
+        vB POD b2Vec2 = bB.m_linearVelocity
+        wA float = bA.m_angularVelocity
+        wB float = bB.m_angularVelocity
+
+        speed float = b2Dot(d, b2Cross(wA, axis)) + b2Dot(axis, vB + b2Cross(wB, rB) - vA - b2Cross(wA, rA))
+        return speed
+    }
+
+	/// Get the current joint angle in radians.
+	func GetJointAngle() float {
+        bA *b2Body = this.m_bodyA
+        bB *b2Body = this.m_bodyB
+        return bB.m_sweep.a - bA.m_sweep.a
+    }
+
+	/// Get the current joint angular speed in radians per second.
+	func GetJointAngularSpeed() float {
+        wA float = this.m_bodyA.m_angularVelocity
+        wB float = this.m_bodyB.m_angularVelocity
+        return wB - wA
+    }
+
+	/// Is the joint limit enabled?
+	func IsLimitEnabled() bool {
+        return this.m_enableLimit
+    }
+
+	/// Enable/disable the joint translation limit.
+	func EnableLimit(flag bool) void {
+        if flag != this.m_enableLimit {
+            this.m_bodyA.SetAwake(true)
+            this.m_bodyB.SetAwake(true)
+            this.m_enableLimit = flag
+            this.m_lowerImpulse = 0.0f
+            this.m_upperImpulse = 0.0f
+        }
+    }
+
+	/// Get the lower joint translation limit, usually in meters.
+	func GetLowerLimit() float {
+        return this.m_lowerTranslation
+    }
+
+	/// Get the upper joint translation limit, usually in meters.
+	func GetUpperLimit() float {
+        return this.m_upperTranslation
+    }
+
+	/// Set the joint translation limits, usually in meters.
+	func SetLimits(lower, upper float) void {
+        b2Assert(lower <= upper)
+
+        if lower != this.m_lowerTranslation || upper != this.m_upperTranslation {
+            this.m_bodyA.SetAwake(true)
+            this.m_bodyB.SetAwake(true)
+            this.m_lowerTranslation = lower
+            this.m_upperTranslation = upper
+            this.m_lowerImpulse = 0.0f
+            this.m_upperImpulse = 0.0f
+        }
+    }
+
+	/// Is the joint motor enabled?
+	func IsMotorEnabled() bool {
+        return this.m_enableMotor
+    }
+
+	/// Enable/disable the joint motor.
+	func EnableMotor(flag bool) void {
+        if flag != this.m_enableMotor {
+            this.m_bodyA.SetAwake(true)
+            this.m_bodyB.SetAwake(true)
+            this.m_enableMotor = flag
+        }
+    }
+
+	/// Set the motor speed, usually in radians per second.
+	func SetMotorSpeed(speed float) void {
+        if speed != this.m_motorSpeed {
+            this.m_bodyA.SetAwake(true)
+            this.m_bodyB.SetAwake(true)
+            this.m_motorSpeed = speed
+        }
+    }
+
+	/// Get the motor speed, usually in radians per second.
+	func GetMotorSpeed() float { return this.m_motorSpeed; }
+
+	/// Set/Get the maximum motor force, usually in N-m.
+	func SetMaxMotorTorque(torque float) void {
+        if torque != this.m_maxMotorTorque {
+            this.m_bodyA.SetAwake(true)
+            this.m_bodyB.SetAwake(true)
+            this.m_maxMotorTorque = torque
+        }
+    }
+
+	func GetMaxMotorTorque() float { return this.m_maxMotorTorque; }
+
+	/// Get the current motor torque given the inverse time step, usually in N-m.
+	func GetMotorTorque(inv_dt float) float {
+        return inv_dt * this.m_motorImpulse
+    }
+
+	/// Access spring stiffness
+	func SetStiffness(stiffness float) void {
+        this.m_stiffness = stiffness
+    }
+
+	func GetStiffness() float {
+        return this.m_stiffness
+    }
+
+	/// Access damping
+	func SetDamping(damping float) void {
+        this.m_damping = damping
+    }
+
+	func GetDamping() float {
+        return this.m_damping
+    }
+
+	/// Dump to b2Log
+    // (override)
+	func Dump() void {
+        // FLT_DECIMAL_DIG == 9
+
+        indexA int = this.m_bodyA.m_islandIndex
+        indexB int = this.m_bodyB.m_islandIndex
+
+        b2Dump('  b2WheelJointDef jd;\n')
+        b2Dump('  jd.bodyA = bodies[%d];\n', indexA)
+        b2Dump('  jd.bodyB = bodies[%d];\n', indexB)
+        b2Dump('  jd.collideConnected = bool(%d);\n', this.m_collideConnected)
+        b2Dump('  jd.localAnchorA.Set(%hf, %hf);\n', this.m_localAnchorA.x, this.m_localAnchorA.y)
+        b2Dump('  jd.localAnchorB.Set(%hf, %hf);\n', this.m_localAnchorB.x, this.m_localAnchorB.y)
+        b2Dump('  jd.localAxisA.Set(%hf, %hf);\n', this.m_localXAxisA.x, this.m_localXAxisA.y)
+        b2Dump('  jd.enableMotor = bool(%d);\n', this.m_enableMotor)
+        b2Dump('  jd.motorSpeed = %hf;\n', this.m_motorSpeed)
+        b2Dump('  jd.maxMotorTorque = %hf;\n', this.m_maxMotorTorque)
+        b2Dump('  jd.stiffness = %hf;\n', this.m_stiffness)
+        b2Dump('  jd.damping = %hf;\n', this.m_damping)
+        b2Dump('  joints[%d] = m_world->CreateJoint(&jd);\n', this.m_index)
+    }
+
+	///
+    // (override)
+	func Draw(draw *b2Draw) void {
+        xfA *b2Transform = this.m_bodyA.GetTransform()
+        xfB *b2Transform = this.m_bodyB.GetTransform()
+        pA POD b2Vec2 = POD b2Mul(xfA, this.m_localAnchorA)
+        pB POD b2Vec2 = POD b2Mul(xfB, this.m_localAnchorB)
+
+        axis POD b2Vec2 = b2Mul(xfA.q, this.m_localXAxisA)
+
+        c1 POD b2Color = POD b2Color(0.7f, 0.7f, 0.7f)
+        c2 POD b2Color = POD b2Color(0.3f, 0.9f, 0.3f)
+        c3 POD b2Color = POD b2Color(0.9f, 0.3f, 0.3f)
+        c4 POD b2Color = POD b2Color(0.3f, 0.3f, 0.9f)
+        c5 POD b2Color = POD b2Color(0.4f, 0.4f, 0.4f)
+
+        draw.DrawSegment(&pA, &pB, &c5)
+
+        if this.m_enableLimit {
+            lower POD b2Vec2 = pA + axis * this.m_lowerTranslation
+            upper POD b2Vec2 = pA + axis * this.m_upperTranslation
+            perp POD b2Vec2 = b2Mul(xfA.q, this.m_localYAxisA)
+            draw.DrawSegment(lower, upper, &c1)
+            draw.DrawSegment(lower - perp * 0.5f, lower + perp * 0.5f, &c2)
+            draw.DrawSegment(upper - perp * 0.5f, upper + perp * 0.5f, &c3)
+        } else {
+            draw.DrawSegment(pA - axis * 1.0f, pA + axis * 1.0f, &c1)
+        }
+
+        draw.DrawPoint(&pA, 5.0f, &c1)
+        draw.DrawPoint(&pB, 5.0f, &c4)
+    }
+
+    // --------------------------------------------------------
+
+	// (override)
+    func InitVelocityConstraints(in data *b2SolverData) void {
+        this.m_indexA = this.m_bodyA.m_islandIndex
+        this.m_indexB = this.m_bodyB.m_islandIndex
+        this.m_localCenterA = this.m_bodyA.m_sweep.localCenter
+        this.m_localCenterB = this.m_bodyB.m_sweep.localCenter
+        this.m_invMassA = this.m_bodyA.m_invMass
+        this.m_invMassB = this.m_bodyB.m_invMass
+        this.m_invIA = this.m_bodyA.m_invI
+        this.m_invIB = this.m_bodyB.m_invI
+
+        mA float = this.m_invMassA
+        mB float = this.m_invMassB
+        iA float = this.m_invIA
+        iB float = this.m_invIB
+
+        cA POD b2Vec2 = POD data.positions[this.m_indexA].c
+        aA float = data.positions[this.m_indexA].a
+        vA POD b2Vec2 = POD data.velocities[this.m_indexA].v
+        wA float = data.velocities[this.m_indexA].w
+
+        cB POD b2Vec2 = POD data.positions[this.m_indexB].c
+        aB float = data.positions[this.m_indexB].a
+        vB POD b2Vec2 = POD data.velocities[this.m_indexB].v
+        wB float = data.velocities[this.m_indexB].w
+
+        qA POD b2Rot = POD b2Rot(aA)
+        qB POD b2Rot = POD b2Rot(aB)
+
+        // Compute the effective masses.
+        rA POD b2Vec2 = POD b2Mul(qA, this.m_localAnchorA - this.m_localCenterA)
+        rB POD b2Vec2 = POD b2Mul(qB, this.m_localAnchorB - this.m_localCenterB)
+        d  POD b2Vec2 = POD cB + rB - cA - rA
+
+        // Point to line constraint
+        if true {
+            this.m_ay = b2Mul(qA, this.m_localYAxisA)
+            this.m_sAy = b2Cross(d + rA, this.m_ay)
+            this.m_sBy = b2Cross(rB, this.m_ay)
+
+            this.m_mass = mA + mB + iA * this.m_sAy * this.m_sAy + iB * this.m_sBy * this.m_sBy
+
+            if this.m_mass > 0.0f {
+                this.m_mass = 1.0f / this.m_mass
+            }
+        }
+
+        // Spring constraint
+        this.m_ax = b2Mul(qA, this.m_localXAxisA)
+        this.m_sAx = b2Cross(d + rA, this.m_ax)
+        this.m_sBx = b2Cross(rB, this.m_ax)
+
+        const invMass float = mA + mB + iA * this.m_sAx * this.m_sAx + iB * this.m_sBx * this.m_sBx
+
+        if invMass > 0.0f {
+            this.m_axialMass = 1.0f / invMass
+        } else {
+            this.m_axialMass = 0.0f
+        }
+
+        this.m_springMass = 0.0f
+        this.m_bias = 0.0f
+        this.m_gamma = 0.0f
+
+        if this.m_stiffness > 0.0f && invMass > 0.0f {
+            this.m_springMass = 1.0f / invMass
+
+            C float = b2Dot(d, this.m_ax)
+
+            // magic formulas
+            h float = data.step.dt
+            this.m_gamma = h * (this.m_damping + h * this.m_stiffness)
+
+            if this.m_gamma > 0.0f {
+                this.m_gamma = 1.0f / this.m_gamma
+            }
+
+            this.m_bias = C * h * this.m_stiffness * this.m_gamma
+            this.m_springMass = invMass + this.m_gamma
+
+            if this.m_springMass > 0.0f {
+                this.m_springMass = 1.0f / this.m_springMass
+            }
+        } else {
+            this.m_springImpulse = 0.0f
+        }
+
+        if this.m_enableLimit {
+            this.m_translation = b2Dot(this.m_ax, d)
+        } else {
+            this.m_lowerImpulse = 0.0f
+            this.m_upperImpulse = 0.0f
+        }
+
+        if this.m_enableMotor {
+            this.m_motorMass = iA + iB
+
+            if this.m_motorMass > 0.0f {
+                this.m_motorMass = 1.0f / this.m_motorMass
+            }
+        } else {
+            this.m_motorMass = 0.0f
+            this.m_motorImpulse = 0.0f
+        }
+
+        if data.step.warmStarting {
+            // Account for variable time step.
+            this.m_impulse *= data.step.dtRatio
+            this.m_springImpulse *= data.step.dtRatio
+            this.m_motorImpulse *= data.step.dtRatio
+
+            axialImpulse float = this.m_springImpulse + this.m_lowerImpulse - this.m_upperImpulse
+            P POD b2Vec2 = this.m_impulse * this.m_ay + axialImpulse * this.m_ax
+            LA float = this.m_impulse * this.m_sAy + axialImpulse * this.m_sAx + this.m_motorImpulse
+            LB float = this.m_impulse * this.m_sBy + axialImpulse * this.m_sBx + this.m_motorImpulse
+
+            vA.SubtractAssign(P * this.m_invMassA)
+            wA -= this.m_invIA * LA
+
+            vB.AddAssign(P * this.m_invMassB)
+            wB += this.m_invIB * LB
+        } else {
+            this.m_impulse = 0.0f
+            this.m_springImpulse = 0.0f
+            this.m_motorImpulse = 0.0f
+            this.m_lowerImpulse = 0.0f
+            this.m_upperImpulse = 0.0f
+        }
+
+        data.velocities[this.m_indexA].v = vA
+        data.velocities[this.m_indexA].w = wA
+        data.velocities[this.m_indexB].v = vB
+        data.velocities[this.m_indexB].w = wB
+    }
+
+	// (override)
+    func SolveVelocityConstraints(in data *b2SolverData) void {
+        mA float = this.m_invMassA
+        mB float = this.m_invMassB
+        iA float = this.m_invIA
+        iB float = this.m_invIB
+
+        vA POD b2Vec2 = data.velocities[this.m_indexA].v
+        wA float = data.velocities[this.m_indexA].w
+        vB POD b2Vec2 = data.velocities[this.m_indexB].v
+        wB float = data.velocities[this.m_indexB].w
+
+        // Solve spring constraint
+        if true {
+            Cdot float = b2Dot(this.m_ax, vB - vA) + this.m_sBx * wB - this.m_sAx * wA
+            impulse float = (0.0f - this.m_springMass) * (Cdot + this.m_bias + this.m_gamma * this.m_springImpulse)
+            this.m_springImpulse += impulse
+
+            P POD b2Vec2 = impulse * this.m_ax
+            LA float = impulse * this.m_sAx
+            LB float = impulse * this.m_sBx
+
+            vA.SubtractAssign(mA * P)
+            wA -= iA * LA
+
+            vB.AddAssign(mB * P)
+            wB += iB * LB
+        }
+
+        // Solve rotational motor constraint
+        if true {
+            Cdot float = wB - wA - this.m_motorSpeed
+            impulse float = -1.0f * this.m_motorMass * Cdot
+
+            oldImpulse float = this.m_motorImpulse
+            maxImpulse float = data.step.dt * this.m_maxMotorTorque
+            this.m_motorImpulse = b2Clamp(this.m_motorImpulse + impulse, 0.0f - maxImpulse, maxImpulse)
+            impulse = this.m_motorImpulse - oldImpulse
+
+            wA -= iA * impulse
+            wB += iB * impulse
+        }
+
+        if this.m_enableLimit {
+            // Lower limit
+            if true {
+                C float = this.m_translation - this.m_lowerTranslation
+                Cdot float = b2Dot(this.m_ax, vB - vA) + this.m_sBx * wB - this.m_sAx * wA
+                impulse float = -1.0f * this.m_axialMass * (Cdot + b2Max(C, 0.0f) * data.step.inv_dt)
+                oldImpulse float = this.m_lowerImpulse
+                this.m_lowerImpulse = b2Max(this.m_lowerImpulse + impulse, 0.0f)
+                impulse = this.m_lowerImpulse - oldImpulse
+
+                P POD b2Vec2 = this.m_ax * impulse
+                LA float = this.m_sAx * impulse
+                LB float = this.m_sBx * impulse
+
+                vA.SubtractAssign(P * mA)
+                wA -= iA * LA
+                vB.AddAssign(P * mB)
+                wB += iB * LB
+            }
+
+            // Upper limit
+            // Note: signs are flipped to keep C positive when the constraint is satisfied.
+            // This also keeps the impulse positive when the limit is active.
+            if true {
+                C float = this.m_upperTranslation - this.m_translation
+                Cdot float = b2Dot(this.m_ax, vA - vB) + this.m_sAx * wA - this.m_sBx * wB
+                impulse float = -1.0f * this.m_axialMass * (Cdot + b2Max(C, 0.0f) * data.step.inv_dt)
+                oldImpulse float = this.m_upperImpulse
+                this.m_upperImpulse = b2Max(this.m_upperImpulse + impulse, 0.0f)
+                impulse = this.m_upperImpulse - oldImpulse
+
+                P POD b2Vec2 = this.m_ax * impulse
+                LA float = this.m_sAx * impulse
+                LB float = this.m_sBx * impulse
+
+                vA.AddAssign(P * mA)
+                wA += iA * LA
+                vB.SubtractAssign(P * mB)
+                wB -= iB * LB
+            }
+        }
+
+        // Solve point to line constraint
+        if true {
+            Cdot float = b2Dot(this.m_ay, vB - vA) + this.m_sBy * wB - this.m_sAy * wA
+            impulse float = -1.0f * this.m_mass * Cdot
+            this.m_impulse += impulse
+
+            P POD b2Vec2 = this.m_ay * impulse
+            LA float = this.m_sAy * impulse
+            LB float = this.m_sBy * impulse
+
+            vA.SubtractAssign(P * mA)
+            wA -= iA * LA
+
+            vB.AddAssign(mB * P)
+            wB += iB * LB
+        }
+
+        data.velocities[this.m_indexA].v = vA
+        data.velocities[this.m_indexA].w = wA
+        data.velocities[this.m_indexB].v = vB
+        data.velocities[this.m_indexB].w = wB
+    }
+
+	// (override)
+    func SolvePositionConstraints(in data *b2SolverData) bool {
+        cA POD b2Vec2 = POD data.positions[this.m_indexA].c
+        aA float = data.positions[this.m_indexA].a
+        cB POD b2Vec2 = POD data.positions[this.m_indexB].c
+        aB float = data.positions[this.m_indexB].a
+
+        linearError float = 0.0f
+
+        if this.m_enableLimit {
+            qA POD b2Rot = POD b2Rot(aA)
+            qB POD b2Rot = POD b2Rot(aB)
+
+            rA POD b2Vec2 = POD b2Mul(qA, this.m_localAnchorA - this.m_localCenterA)
+            rB POD b2Vec2 = POD b2Mul(qB, this.m_localAnchorB - this.m_localCenterB)
+            d POD b2Vec2 = POD (cB - cA) + rB - rA
+
+            ax b2Vec2 = POD b2Mul(qA, this.m_localXAxisA)
+            sAx float = b2Cross(d + rA, this.m_ax)
+            sBx float = b2Cross(rB, this.m_ax)
+
+            C float = 0.0f
+            translation float = b2Dot(ax, d)
+
+            if b2Abs(this.m_upperTranslation - this.m_lowerTranslation) < 2.0f * b2_linearSlop {
+                C = translation
+            } else if translation <= this.m_lowerTranslation {
+                C = b2Min(translation - this.m_lowerTranslation, 0.0f)
+            } else if translation >= this.m_upperTranslation {
+                C = b2Max(translation - this.m_upperTranslation, 0.0f)
+            }
+
+            if C != 0.0f {
+                invMass float = this.m_invMassA + this.m_invMassB + this.m_invIA * sAx * sAx + this.m_invIB * sBx * sBx
+                impulse float = 0.0f
+
+                if invMass != 0.0f {
+                    impulse = -1.0f * C / invMass
+                }
+
+                P POD b2Vec2 = ax * impulse
+                LA float = sAx * impulse
+                LB float = sBx * impulse
+
+                cA.SubtractAssign(P * this.m_invMassA)
+                aA -= this.m_invIA * LA
+                cB.AddAssign(P * this.m_invMassB)
+                aB += this.m_invIB * LB
+
+                linearError = b2Abs(C)
+            }
+        }
+
+        // Solve perpendicular constraint
+        if true {
+            qA POD b2Rot = POD b2Rot(aA)
+            qB POD b2Rot = POD b2Rot(aB)
+
+            rA POD b2Vec2 = POD b2Mul(qA, this.m_localAnchorA - this.m_localCenterA)
+            rB POD b2Vec2 = POD b2Mul(qB, this.m_localAnchorB - this.m_localCenterB)
+            d POD b2Vec2 = POD (cB - cA) + rB - rA
+
+            ay POD b2Vec2 = POD b2Mul(qA, this.m_localYAxisA)
+
+            sAy float = b2Cross(d + rA, ay)
+            sBy float = b2Cross(rB, ay)
+
+            C float = b2Dot(d, ay)
+
+            invMass float = this.m_invMassA + this.m_invMassB + this.m_invIA * this.m_sAy * this.m_sAy + this.m_invIB * this.m_sBy * this.m_sBy
+
+            impulse float = 0.0f
+
+            if invMass != 0.0f {
+                impulse = -1.0f * C / invMass
+            }
+
+            P POD b2Vec2 = ay * impulse
+            LA float = sAy * impulse
+            LB float = sBy * impulse
+
+            cA.SubtractAssign(P * this.m_invMassA)
+            aA -= this.m_invIA * LA
+            cB.AddAssign(P * this.m_invMassB)
+            aB += this.m_invIB * LB
+
+            linearError = b2Max(linearError, b2Abs(C))
+        }
+
+        data.positions[this.m_indexA].c = cA
+        data.positions[this.m_indexA].a = aA
+        data.positions[this.m_indexB].c = cB
+        data.positions[this.m_indexB].a = aB
+
+        return linearError <= b2_linearSlop
+    }
+}
+
+func b2Joint\CreateRaw\b2WheelJoint(out uninitialized *b2WheelJoint, in definition *b2WheelJointDef) *b2WheelJoint {
+    b2Joint(uninitialized, definition as *b2JointDef)
+
+    uninitialized.m_localAnchorA = definition.localAnchorA
+	uninitialized.m_localAnchorB = definition.localAnchorB
+	uninitialized.m_localXAxisA = definition.localAxisA
+	uninitialized.m_localYAxisA = b2Cross(1.0f, uninitialized.m_localXAxisA)
+
+	uninitialized.m_mass = 0.0f
+	uninitialized.m_impulse = 0.0f
+	uninitialized.m_motorMass = 0.0f
+	uninitialized.m_motorImpulse = 0.0f
+	uninitialized.m_springMass = 0.0f
+	uninitialized.m_springImpulse = 0.0f
+
+	uninitialized.m_axialMass = 0.0f
+	uninitialized.m_lowerImpulse = 0.0f
+	uninitialized.m_upperImpulse = 0.0f
+	uninitialized.m_lowerTranslation = definition.lowerTranslation
+	uninitialized.m_upperTranslation = definition.upperTranslation
+	uninitialized.m_enableLimit = definition.enableLimit
+
+	uninitialized.m_maxMotorTorque = definition.maxMotorTorque
+	uninitialized.m_motorSpeed = definition.motorSpeed
+	uninitialized.m_enableMotor = definition.enableMotor
+
+	uninitialized.m_bias = 0.0f
+	uninitialized.m_gamma = 0.0f
+
+	uninitialized.m_ax.SetZero()
+	uninitialized.m_ay.SetZero()
+
+	uninitialized.m_stiffness = definition.stiffness
+	uninitialized.m_damping = definition.damping
+
+    return uninitialized
+}

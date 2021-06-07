@@ -1,0 +1,178 @@
+
+// Ported by Isaac Shelton from Erin Catto's Box2D @ 95f74a46c077825478f989df6a81003ca538c2c2
+
+// MIT License
+
+// Copyright (c) 2020-2021 Isaac Shelton
+
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
+import "b2_math.adept"
+
+struct b2Color (r, g, b, a float) {
+    func Set(r, g, b float, a float = 1.0f) {
+        this.r = r
+        this.g = g
+        this.b = b
+        this.a = a
+    }
+}
+
+func b2Color() b2Color {
+    c POD b2Color
+    return c
+}
+
+func b2Color(r, g, b float, a float = 1.0f) b2Color {
+    c POD b2Color = undef
+    c.r = r
+    c.g = g
+    c.b = b
+    c.a = a
+    return c
+}
+
+define b2Draw\e_shapeBit        = 0x0001 ///< draw shapes
+define b2Draw\e_jointBit        = 0x0002 ///< draw joint connections
+define b2Draw\e_aabbBit         = 0x0004 ///< draw axis aligned bounding boxes
+define b2Draw\e_pairBit         = 0x0008 ///< draw broad-phase pairs
+define b2Draw\e_centerOfMassBit = 0x0010 ///< draw center of mass frame
+
+/// Implement and register this class with a b2World to provide debug drawing of physics
+/// entities in your game.
+struct b2Draw (m_drawFlags uint, vtable b2DrawVTable) {
+    verbatim func __defer__ {
+        f func(ptr) void = this.vtable.f_defer
+        if f, f(this)
+    }
+
+    func SetFlags(flags uint) {
+        this.m_drawFlags = flags
+    }
+
+    func GetFlags() uint {
+        return this.m_drawFlags
+    }
+
+    func AppendFlags(flags uint) {
+        this.m_drawFlags |= flags
+    }
+
+    func ClearFlags(flags uint) {
+        this.m_drawFlags &= ~flags
+    }
+
+    func DrawPolygon(in vertices *b2Vec2, vertexCount int, in color *b2Color) void {
+        f func(ptr, *b2Vec2, int, *b2Color) void = this.vtable.f_DrawPolygon
+        if f, f(this, vertices, vertexCount, color); return
+
+        b2_common\missing_vtable_entry('b2Draw', 'DrawPolygon')
+    }
+
+    func DrawSolidPolygon(in vertices *b2Vec2, vertexCount int, in color *b2Color) void {
+        f func(ptr, *b2Vec2, int, *b2Color) void = this.vtable.f_DrawSolidPolygon
+        if f, f(this, vertices, vertexCount, color); return
+
+        b2_common\missing_vtable_entry('b2Draw', 'DrawSolidPolygon')
+    }
+
+    func DrawCircle(in center *b2Vec2, radius float, in color *b2Color) void {
+        f func(ptr, *b2Vec2, float, *b2Color) void = this.vtable.f_DrawCircle
+        if f, f(this, center, radius, color); return
+
+        b2_common\missing_vtable_entry('b2Draw', 'DrawCircle')
+    }
+
+    func DrawSolidCircle(in center *b2Vec2, radius float, in axis *b2Vec2, in color *b2Color) void {
+        f func(ptr, *b2Vec2, float, *b2Vec2, *b2Color) void = this.vtable.f_DrawSolidCircle
+        if f, f(this, center, radius, axis, color); return
+
+        b2_common\missing_vtable_entry('b2Draw', 'DrawSolidCircle')
+    }
+
+    func DrawSegment(in p1, p2 POD b2Vec2, in color *b2Color) void {
+        this.DrawSegment(&p1, &p2, color)
+    }
+
+    func DrawSegment(in p1, p2 *b2Vec2, in color *b2Color) void {
+        f func(ptr, *b2Vec2, *b2Vec2, *b2Color) void = this.vtable.f_DrawSegment
+        if f, f(this, p1, p2, color); return
+
+        b2_common\missing_vtable_entry('b2Draw', 'DrawSegment')
+    }
+
+    func DrawTransform(in xf *b2Transform) void {
+        f func(ptr, *b2Transform) void = this.vtable.f_DrawTransform
+        if f, f(this, xf); return
+
+        b2_common\missing_vtable_entry('b2Draw', 'DrawTransform')
+    }
+
+    func DrawPoint(in p *b2Vec2, size float, in color *b2Color) void {
+        f func(ptr, *b2Vec2, float, *b2Color) void = this.vtable.f_DrawPoint
+        if f, f(this, p, size, color); return
+
+        b2_common\missing_vtable_entry('b2Draw', 'DrawPoint')
+    }
+}
+
+func b2Draw(out implementation *$b2DrawLike, use_defer bool) *b2Draw {
+    implementation.m_drawFlags = 0
+    implementation.vtable = b2DrawVTable(null as *$b2DrawLike, use_defer)
+}
+
+struct b2DrawVTable (
+    /// Destruction Handler
+    f_defer,
+    /// Draw a closed polygon provided in CCW order.
+    //  virtual void DrawPolygon(const b2Vec2* vertices, int32 vertexCount, const b2Color& color) = 0
+    f_DrawPolygon,
+    /// Draw a solid closed polygon provided in CCW order.
+    //  virtual void DrawSolidPolygon(const b2Vec2* vertices, int32 vertexCount, const b2Color& color) = 0;
+    f_DrawSolidPolygon,
+    /// Draw a circle.
+    // 	virtual void DrawCircle(const b2Vec2& center, float radius, const b2Color& color) = 0;
+    f_DrawCircle,
+    /// Draw a solid circle.
+	// virtual void DrawSolidCircle(const b2Vec2& center, float radius, const b2Vec2& axis, const b2Color& color) = 0;
+    f_DrawSolidCircle,
+    /// Draw a line segment.
+	// virtual void DrawSegment(const b2Vec2& p1, const b2Vec2& p2, const b2Color& color) = 0;
+    f_DrawSegment,
+    /// Draw a transform. Choose your own length scale.
+	/// @param xf a transform.
+	// virtual void DrawTransform(const b2Transform& xf) = 0;
+    f_DrawTransform,
+    /// Draw a point.
+	// virtual void DrawPoint(const b2Vec2& p, float size, const b2Color& color) = 0;
+    f_DrawPoint ptr
+)
+
+func b2DrawVTable(_ *$b2DrawImplementation, use_defer bool = true) b2DrawVTable {
+    table POD b2DrawVTable
+    table.f_defer = use_defer ? func &__defer__(*$b2DrawImplementations) : null
+    table.f_DrawPolygon = func &DrawPolygon(*$b2DrawImplementations, *b2Vec2, int, *b2Color) as ptr
+    table.f_DrawSolidPolygon = func &f_DrawSolidPolygon(*$b2DrawImplementations, *b2Vec2, int, *b2Color) as ptr
+    table.f_DrawCircle = func &DrawCircle(*$b2DrawImplementations, *b2Vec2, float, *b2Color) as ptr
+    table.f_DrawSolidCircle = func &DrawSolidCircle(*$b2DrawImplementations, *b2Vec2, float, *b2Vec2, *b2Color) as ptr
+    table.f_DrawSegment = func &DrawSegment(*$b2DrawImplementations, *b2Vec2, *b2Vec2, *b2Color) as ptr
+    table.f_DrawTransform = func &DrawTransform(*$b2DrawImplementations, *b2Transform) as ptr
+    table.f_DrawPoint = func &DrawTransform(*$b2DrawImplementations, *b2Vec2, float, *b2Color) as ptr
+    return table
+}

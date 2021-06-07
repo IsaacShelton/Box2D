@@ -1,0 +1,177 @@
+
+// Ported by Isaac Shelton from Erin Catto's Box2D @ 95f74a46c077825478f989df6a81003ca538c2c2
+
+// MIT License
+
+// Copyright (c) 2020-2021 Isaac Shelton
+
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
+import "b2_shape.adept"
+
+/// A line segment (edge) shape. These can be connected in chains or loops
+/// to other edge shapes. Edges created independently are two-sided and do
+/// no provide smooth movement across junctions.
+struct b2EdgeShape (
+    struct b2Shape,
+	m_vertex1, m_vertex2 b2Vec2, /// These are the edge vertices
+	m_vertex0, m_vertex3 b2Vec2, /// Optional adjacent vertices. These are used for smooth collision.
+	m_oneSided bool              /// Uses m_vertex0 and m_vertex3 to create smooth collision.
+) {
+    /// Set this as a part of a sequence. Vertex v0 precedes the edge and vertex v3
+	/// follows. These extra vertices are used to provide smooth movement
+	/// across junctions. This also makes the collision one-sided. The edge
+	/// normal points to the right looking from v1 to v2.
+    func SetOneSided(in v0, v1, v2, v3 *b2Vec2) void {
+        this.m_vertex0 = POD *v0
+	    this.m_vertex1 = POD *v1
+	    this.m_vertex2 = POD *v2
+	    this.m_vertex3 = POD *v3
+	    this.m_oneSided = true
+    }
+
+    /// Set this as an isolated edge. Collision is two-sided.
+    func SetTwoSided(in v1, v2 *b2Vec2) void {
+        this.m_vertex1 = POD *v1
+	    this.m_vertex2 = POD *v2
+	    this.m_oneSided = false
+    }
+
+    /// Implement b2Shape.
+    func Clone(allocator *b2BlockAllocator) *b2Shape {
+        mem ptr = allocator.Allocate(sizeof b2EdgeShape)
+        clone *b2EdgeShape = b2EdgeShape(mem as *b2EdgeShape)
+        *clone = POD *this
+        return clone as *b2Shape
+    }
+
+    /// @see b2Shape::GetChildCount
+    func GetChildCount() int {
+        return 1
+    }
+
+    /// @see b2Shape::TestPoint
+    func TestPoint(in _transform *b2Transform, in _p *b2Vec2) bool {
+        return false
+    }
+
+	/// Implement b2Shape.
+    // p = p1 + t * d
+    // v = v1 + s * e
+    // p1 + t * d = v1 + s * e
+    // s * e - t * d = p1 - v1
+    func RayCast(
+        out output *b2RayCastOutput,
+        in input *b2RayCastInput,
+        in xf *b2Transform,
+        in _childIndex int
+    ) bool {
+        // Put the ray into the edge's frame of reference.
+        p1 POD b2Vec2 = b2MulT(xf.q, input.p1 - xf.p)
+        p2 POD b2Vec2 = b2MulT(xf.q, input.p2 - xf.p)
+        d POD b2Vec2 = p2 - p1
+
+        v1 POD b2Vec2 = this.m_vertex1
+        v2 POD b2Vec2 = this.m_vertex2
+        e POD b2Vec2 = v2 - v1
+
+        // Normal points to the right, looking from v1 at v2
+        normal POD b2Vec2 = POD b2Vec2(e.y, -e.x)
+        normal.Normalize()
+
+        // q = p1 + t * d
+        // dot(normal, q - v1) = 0
+        // dot(normal, p1 - v1) + t * dot(normal, d) = 0
+        numerator float = b2Dot(normal, v1 - p1)
+        if this.m_oneSided && numerator > 0.0f, return false
+
+        denominator float = b2Dot(normal, d)
+        if denominator == 0.0f, return false
+
+        t float = numerator / denominator
+        if t < 0.0f || input.maxFraction < t, return false
+
+        q POD b2Vec2 = p1 + t * d
+
+        // q = v1 + s * r
+        // s = dot(q - v1, r) / dot(r, r)
+        r POD b2Vec2 = v2 - v1
+        rr float = b2Dot(r, r)
+        if rr == 0.0f, return false
+
+        s float = b2Dot(q - v1, r) / rr
+        if s < 0.0f || 1.0f < s, return false
+
+        output.fraction = t
+
+        if numerator > 0.0f {
+            output.normal = b2Mul(xf.q, normal).Negated()
+        } else {
+            output.normal = b2Mul(xf.q, normal)
+        }
+
+        return true
+    }
+
+    /// @see b2Shape::ComputeAABB
+    func ComputeAABB(
+        out aabb *b2AABB,
+        in xf *b2Transform,
+        in _childIndex int
+    ) void {
+        v1 POD b2Vec2 = b2Mul(xf, this.m_vertex1)
+        v2 POD b2Vec2 = b2Mul(xf, this.m_vertex2)
+
+        lower POD b2Vec2 = b2Min(v1, v2)
+        upper POD b2Vec2 = b2Max(v1, v2)
+
+        r POD b2Vec2 = b2Vec2(this.m_radius, this.m_radius)
+        aabb.lowerBound = lower - r
+        aabb.upperBound = upper + r
+    }
+
+	/// @see b2Shape::ComputeMass
+    func ComputeMass(
+        out massData *b2MassData,
+        in _density float
+    ) void {
+        massData.mass = 0.0f
+        massData.center = 0.5f * (this.m_vertex1 + this.m_vertex2)
+        massData.I = 0.0f
+    }
+}
+
+func b2EdgeShape() b2EdgeShape {
+    e POD b2EdgeShape = undef
+    return *b2EdgeShape(&e)
+}
+
+func b2EdgeShape(out uninitialized *b2EdgeShape) *b2EdgeShape {
+    uninitialized.m_type = b2ShapeType::e_edge
+	uninitialized.m_radius = b2_polygonRadius
+    uninitialized.vtable = &_b2EdgeShape_vtable
+	uninitialized.m_vertex0.x = 0.0f
+	uninitialized.m_vertex0.y = 0.0f
+	uninitialized.m_vertex3.x = 0.0f
+	uninitialized.m_vertex3.y = 0.0f
+	uninitialized.m_oneSided = false
+    return uninitialized
+}
+
+_b2EdgeShape_vtable b2ShapeVTable = b2ShapeVTable(null as *b2EdgeShape, false)

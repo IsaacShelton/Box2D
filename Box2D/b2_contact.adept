@@ -1,0 +1,514 @@
+
+// Ported by Isaac Shelton from Erin Catto's Box2D @ 95f74a46c077825478f989df6a81003ca538c2c2
+
+// MIT License
+
+// Copyright (c) 2020-2021 Isaac Shelton
+
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
+import "b2_collision.adept"
+import "b2_fixture.adept"
+import "b2_math.adept"
+import "b2_shape.adept"
+
+/*
+REQUIRES:
+    class b2Body;
+    class b2Contact;
+    class b2Fixture;
+    class b2World;
+    class b2BlockAllocator;
+    class b2StackAllocator;
+    class b2ContactListener;
+*/
+
+/// Friction mixing law. The idea is to allow either fixture to drive the friction to zero.
+/// For example, anything slides on ice.
+func b2MixFriction(friction1, friction2 float) float {
+	return b2Sqrt(friction1 * friction2)
+}
+
+/// Restitution mixing law. The idea is allow for anything to bounce off an inelastic surface.
+/// For example, a superball bounces on anything.
+func b2MixRestitution(restitution1, restitution2 float) float {
+	return restitution1 > restitution2 ? restitution1 : restitution2
+}
+
+/// Restitution mixing law. This picks the lowest value.
+func b2MixRestitutionThreshold(threshold1, threshold2 float) float {
+	return threshold1 < threshold2 ? threshold1 : threshold2
+}
+
+alias b2ContactCreateFcn = func(*b2Fixture, int, *b2Fixture, int, *b2BlockAllocator) *b2Contact
+
+alias b2ContactDestroyFcn = func(*b2Contact, *b2BlockAllocator) void
+
+struct b2ContactRegister (createFcn b2ContactCreateFcn, destroyFcn b2ContactDestroyFcn, primary bool)
+
+/// A contact edge is used to connect bodies and contacts together
+/// in a contact graph where each body is a node and each contact
+/// is an edge. A contact edge belongs to a doubly linked list
+/// maintained in each attached body. Each contact has two contact
+/// nodes, one for each attached body.
+struct b2ContactEdge (
+    other *b2Body,          ///< provides quick access to the other body attached.
+    contact *b2Contact,     ///< the contact
+    prev *b2ContactEdge,    ///< the previous contact edge in the body's contact list
+    next *b2ContactEdge     ///< the next contact edge in the body's contact list
+)
+
+/// The class manages contact between two shapes. A contact exists for each overlapping
+/// AABB in the broad-phase (except if filtered). Therefore a contact object may exist
+/// that has no contact points.
+struct b2Contact (
+    m_flags uint,
+
+	// World pool and list pointers.
+	m_prev *b2Contact,
+	m_next *b2Contact,
+
+	// Nodes for connecting bodies.
+	m_nodeA b2ContactEdge,
+	m_nodeB b2ContactEdge,
+
+	m_fixtureA *b2Fixture,
+	m_fixtureB *b2Fixture,
+
+	m_indexA int,
+	m_indexB int,
+
+	m_manifold b2Manifold,
+
+	m_toiCount int,
+	m_toi float,
+
+	m_friction float,
+	m_restitution float,
+	m_restitutionThreshold float,
+
+	m_tangentSpeed float,
+
+    f_defer func(ptr) void,
+    f_Evaluate func(ptr, *b2Manifold, *b2Transform, *b2Transform) void
+) {
+	verbatim func __defer__ {
+		if this.f_defer as ptr {
+			f func(ptr) void = this.f_defer
+			f(this)
+		}
+	}
+
+    /// Get the contact manifold. Do not modify the manifold unless you understand the
+	/// internals of Box2D.
+	func GetManifold() *b2Manifold {
+		return &this.m_manifold
+	}
+
+	/// Get the world manifold.
+	func GetWorldManifold(worldManifold *b2WorldManifold) void {
+		bodyA *b2Body   = this.m_fixtureA.GetBody()
+		bodyB *b2Body   = this.m_fixtureB.GetBody()
+		shapeA *b2Shape = this.m_fixtureA.GetShape()
+		shapeB *b2Shape = this.m_fixtureB.GetShape()
+
+		worldManifold.Initialize(&this.m_manifold, bodyA.GetTransform(), shapeA.m_radius, bodyB.GetTransform(), shapeB.m_radius)
+	}
+
+	/// Is this contact touching?
+	func IsTouching() bool {
+		return (this.m_flags & b2Contact\e_touchingFlag) == b2Contact\e_touchingFlag
+	}
+
+	/// Enable/disable this contact. This can be used inside the pre-solve
+	/// contact listener. The contact is only disabled for the current
+	/// time step (or sub-step in continuous collisions).
+	func SetEnabled(flag bool) void {
+		if flag {
+			this.m_flags |= b2Contact\e_enabledFlag
+		} else {
+			this.m_flags &= ~b2Contact\e_enabledFlag
+		}
+	}
+
+	/// Has this contact been disabled?
+	func IsEnabled() bool {
+		return (this.m_flags & b2Contact\e_enabledFlag) == b2Contact\e_enabledFlag
+	}
+
+	/// Get the next contact in the world's contact list.
+	func GetNext() *b2Contact {
+		return this.m_next
+	}
+
+	/// Get fixture A in this contact.
+	func GetFixtureA() *b2Fixture {
+		return this.m_fixtureA
+	}
+
+	/// Get the child primitive index for fixture A.
+	func GetChildIndexA() int {
+		return this.m_indexA
+	}
+
+	/// Get fixture B in this contact.
+	func GetFixtureB() *b2Fixture {
+		return this.m_fixtureB
+	}
+
+	/// Get the child primitive index for fixture B.
+	func GetChildIndexB() int {
+		return this.m_indexB
+	}
+
+	/// Override the default friction mixture. You can call this in b2ContactListener::PreSolve.
+	/// This value persists until set or reset.
+	func SetFriction(friction float) void {
+		this.m_friction = friction
+	}
+
+	/// Get the friction.
+	func GetFriction() float {
+		return this.m_friction
+	}
+
+	/// Reset the friction mixture to the default value.
+	func ResetFriction() void {
+		this.m_friction = b2MixFriction(this.m_fixtureA.m_friction, this.m_fixtureB.m_friction)
+	}
+
+	/// Override the default restitution mixture. You can call this in b2ContactListener::PreSolve.
+	/// The value persists until you set or reset.
+	func SetRestitution(restitution float) void {
+		this.m_restitution = restitution
+	}
+
+	/// Get the restitution.
+	func GetRestitution() float {
+		return this.m_restitution
+	}
+
+	/// Reset the restitution to the default value.
+	func ResetRestitution() void {
+		this.m_restitution = b2MixRestitution(this.m_fixtureA.m_restitution, this.m_fixtureB.m_restitution)
+	}
+
+	/// Override the default restitution velocity threshold mixture. You can call this in b2ContactListener::PreSolve.
+	/// The value persists until you set or reset.
+	func SetRestitutionThreshold(threshold float) void {
+		this.m_restitutionThreshold = threshold
+	}
+
+	/// Get the restitution threshold.
+	func GetRestitutionThreshold() float {
+		return this.m_restitutionThreshold
+	}
+
+	/// Reset the restitution threshold to the default value.
+	func ResetRestitutionThreshold() void {
+		this.m_restitutionThreshold = b2MixRestitutionThreshold(this.m_fixtureA.m_restitutionThreshold, this.m_fixtureB.m_restitutionThreshold)
+	}
+
+	/// Set the desired tangent speed for a conveyor belt behavior. In meters per second.
+	func SetTangentSpeed(speed float) void {
+		this.m_tangentSpeed = speed
+	}
+
+	/// Get the desired tangent speed. In meters per second.
+	func GetTangentSpeed() float {
+		return this.m_tangentSpeed
+	}
+
+	/// Flag this contact for filtering. Filtering will occur the next time step.
+	func FlagForFiltering() void {
+		this.m_flags |= b2Contact\e_filterFlag
+	}
+
+	// Update the contact manifold and touching status.
+	// Note: do not assume the fixture AABBs are overlapping or are valid.
+	func Update(listener *b2ContactListener) void {
+		oldManifold POD b2Manifold = this.m_manifold
+
+		// Re-enable this contact.
+		this.m_flags |= b2Contact\e_enabledFlag
+
+		touching bool = false
+		wasTouching bool = (this.m_flags & b2Contact\e_touchingFlag) == b2Contact\e_touchingFlag
+
+		sensorA bool = this.m_fixtureA.IsSensor()
+		sensorB bool = this.m_fixtureB.IsSensor()
+		sensor bool = sensorA || sensorB
+
+		bodyA *b2Body = this.m_fixtureA.GetBody()
+		bodyB *b2Body = this.m_fixtureB.GetBody()
+		xfA *b2Transform = bodyA.GetTransform()
+		xfB *b2Transform = bodyB.GetTransform()
+
+		// Is this contact a sensor?
+		if sensor {
+			shapeA *b2Shape = this.m_fixtureA.GetShape()
+			shapeB *b2Shape = this.m_fixtureB.GetShape()
+			touching = b2TestOverlap(shapeA, this.m_indexA, shapeB, this.m_indexB, xfA, xfB)
+
+			// Sensors don't generate manifolds.
+			this.m_manifold.pointCount = 0
+		} else {
+			this.Evaluate(&this.m_manifold, xfA, xfB)
+			touching = this.m_manifold.pointCount > 0
+
+			// Match old contact ids to new contact ids and copy the
+			// stored impulses to warm start the solver.
+			for(i int = 0; i < this.m_manifold.pointCount; ++i){
+				mp2 *b2ManifoldPoint = this.m_manifold.points at i
+				mp2.normalImpulse = 0.0f
+				mp2.tangentImpulse = 0.0f
+				id2 b2ContactID = mp2.id
+
+				for(j int = 0; j < oldManifold.pointCount; ++j){
+					mp1 *b2ManifoldPoint = oldManifold.points at j
+
+					if mp1.id.key == id2.key {
+						mp2.normalImpulse = mp1.normalImpulse
+						mp2.tangentImpulse = mp1.tangentImpulse
+						break
+					}
+				}
+			}
+
+			if touching != wasTouching {
+				bodyA.SetAwake(true)
+				bodyB.SetAwake(true)
+			}
+		}
+
+		if touching {
+			this.m_flags |= b2Contact\e_touchingFlag
+		} else {
+			this.m_flags &= ~b2Contact\e_touchingFlag
+		}
+
+		if wasTouching == false && touching == true && listener {
+			listener.BeginContact(this)
+		}
+
+		if wasTouching == true && touching == false && listener {
+			listener.EndContact(this)
+		}
+
+		if sensor == false && touching && listener {
+			listener.PreSolve(this, &oldManifold)
+		}
+	}
+
+	func Evaluate(manifold *b2Manifold, in xfA, xfB *b2Transform) void {
+		if this.f_Evaluate == null {
+			printf('b2Contact.Evaluate() called when f_Evaluate is null!\n')
+			printf('    (returning null)\n')
+			return
+		}
+
+		f func(ptr, *b2Manifold, *b2Transform, *b2Transform) void = this.f_Evaluate
+		f(this, manifold, xfA, xfB)
+	}
+}
+
+// Used when crawling contact graph when forming islands.
+define b2Contact\e_islandFlag = 0x0001
+
+// Set when the shapes are touching.
+define b2Contact\e_touchingFlag = 0x0002
+
+// This contact can be disabled (by user)
+define b2Contact\e_enabledFlag = 0x0004
+
+// This contact needs filtering because a fixture filter was changed.
+define b2Contact\e_filterFlag = 0x0008
+
+// This bullet contact had a TOI event
+define b2Contact\e_bulletHitFlag = 0x0010
+
+// This contact has a valid TOI in m_toi
+define b2Contact\e_toiFlag = 0x0020
+
+b2Contact\s_registers POD /*b2ShapeType::e_typeCount*/ 4 /*b2ShapeType::e_typeCount*/ 4 b2ContactRegister
+b2Contact\s_initialized bool = false
+
+func b2Contact\InitializeRegisters() void {
+	// Circle vs. Circle
+	b2Contact\AddType(
+		func &b2CircleContact\Create(*b2Fixture, int, *b2Fixture, int, *b2BlockAllocator),
+		func &b2CircleContact\Destroy(*b2Contact, *b2BlockAllocator),
+		b2ShapeType::e_circle,
+		b2ShapeType::e_circle)
+
+	// Polygon vs. Circle
+	b2Contact\AddType(
+		func &b2PolygonAndCircleContact\Create(*b2Fixture, int, *b2Fixture, int, *b2BlockAllocator),
+		func &b2PolygonAndCircleContact\Destroy(*b2Contact, *b2BlockAllocator),
+		b2ShapeType::e_polygon,
+		b2ShapeType::e_circle)
+
+	// Polygon vs. Polygon
+	b2Contact\AddType(
+		func &b2PolygonContact\Create(*b2Fixture, int, *b2Fixture, int, *b2BlockAllocator),
+		func &b2PolygonContact\Destroy(*b2Contact, *b2BlockAllocator),
+		b2ShapeType::e_polygon,
+		b2ShapeType::e_polygon)
+	
+	// Edge vs. Circle
+	b2Contact\AddType(
+		func &b2EdgeAndCircleContact\Create(*b2Fixture, int, *b2Fixture, int, *b2BlockAllocator),
+		func &b2EdgeAndCircleContact\Destroy(*b2Contact, *b2BlockAllocator),
+		b2ShapeType::e_edge,
+		b2ShapeType::e_circle)
+	
+	// Edge vs. Polygon
+	b2Contact\AddType(
+		func &b2EdgeAndPolygonContact\Create(*b2Fixture, int, *b2Fixture, int, *b2BlockAllocator),
+		func &b2EdgeAndPolygonContact\Destroy(*b2Contact, *b2BlockAllocator),
+		b2ShapeType::e_edge,
+		b2ShapeType::e_polygon)
+	
+	// Chain vs. Circle
+	b2Contact\AddType(
+		func &b2ChainAndCircleContact\Create(*b2Fixture, int, *b2Fixture, int, *b2BlockAllocator),
+		func &b2ChainAndCircleContact\Destroy(*b2Contact, *b2BlockAllocator),
+		b2ShapeType::e_chain,
+		b2ShapeType::e_circle)
+	
+	// Chain vs. Polygon
+	b2Contact\AddType(
+		func &b2ChainAndPolygonContact\Create(*b2Fixture, int, *b2Fixture, int, *b2BlockAllocator),
+		func &b2ChainAndPolygonContact\Destroy(*b2Contact, *b2BlockAllocator),
+		b2ShapeType::e_chain,
+		b2ShapeType::e_polygon)
+}
+
+func b2Contact\AddType(createFcn b2ContactCreateFcn, destroyFcn b2ContactDestroyFcn, type1, type2 b2ShapeType) void {
+	b2Assert(0 <= type1 as usize && type1 as usize < b2ShapeType::e_typeCount as usize)
+	b2Assert(0 <= type2 as usize && type2 as usize < b2ShapeType::e_typeCount as usize)
+	
+	b2Contact\s_registers[type1 as usize][type2 as usize].createFcn = createFcn
+	b2Contact\s_registers[type1 as usize][type2 as usize].destroyFcn = destroyFcn
+	b2Contact\s_registers[type1 as usize][type2 as usize].primary = true
+
+	if type1 != type2 {
+		b2Contact\s_registers[type2 as usize][type1 as usize].createFcn = createFcn
+		b2Contact\s_registers[type2 as usize][type1 as usize].destroyFcn = destroyFcn
+		b2Contact\s_registers[type2 as usize][type1 as usize].primary = false
+	}
+}
+
+func b2Contact\Create(fixtureA *b2Fixture, indexA int, fixtureB *b2Fixture, indexB int, allocator *b2BlockAllocator) *b2Contact {
+	unless b2Contact\s_initialized {
+		b2Contact\InitializeRegisters()
+		b2Contact\s_initialized = true
+	}
+
+	type1 b2ShapeType = fixtureA.GetType()
+	type2 b2ShapeType = fixtureB.GetType()
+
+	b2Assert(0 <= type1 as usize && type1 as usize < b2ShapeType::e_typeCount as usize)
+	b2Assert(0 <= type2 as usize && type2 as usize < b2ShapeType::e_typeCount as usize)
+	
+	createFcn b2ContactCreateFcn = b2Contact\s_registers[type1 as usize][type2 as usize].createFcn
+
+	if createFcn {
+		if b2Contact\s_registers[type1 as usize][type2 as usize].primary {
+			return createFcn(fixtureA, indexA, fixtureB, indexB, allocator)
+		} else {
+			return createFcn(fixtureB, indexB, fixtureA, indexA, allocator)
+		}
+	}
+	
+	return null
+}
+
+func b2Contact\Destroy(contact *b2Contact, allocator *b2BlockAllocator) void {
+	b2Assert(b2Contact\s_initialized)
+
+	fixtureA *b2Fixture = contact.m_fixtureA
+	fixtureB *b2Fixture = contact.m_fixtureB
+
+	if contact.m_manifold.pointCount > 0 && fixtureA.IsSensor() == false && fixtureB.IsSensor() == false {
+		fixtureA.GetBody().SetAwake(true)
+		fixtureB.GetBody().SetAwake(true)
+	}
+
+	typeA b2ShapeType = fixtureA.GetType()
+	typeB b2ShapeType = fixtureB.GetType()
+
+	b2Assert(0 <= typeA as usize && typeA as usize < b2ShapeType::e_typeCount as usize)
+	b2Assert(0 <= typeB as usize && typeB as usize < b2ShapeType::e_typeCount as usize)
+
+	destroyFcn b2ContactDestroyFcn = b2Contact\s_registers[typeA as usize][typeB as usize].destroyFcn
+	destroyFcn(contact, allocator)
+}
+
+func b2Contact(uninitialized *$b2ContactLike, use_defer bool) void {
+	uninitialized.m_fixtureA = null
+	uninitialized.m_fixtureB = null
+
+	uninitialized.f_defer = use_defer ? func &__defer__(*$b2ContactLike) : null
+	uninitialized.f_Evaluate = func &Evaluate(*$b2ContactLike, *b2Manifold, *b2Transform, *b2Transform)
+}
+
+func b2Contact(uninitialized *$b2ContactLike, use_defer bool, fA *b2Fixture, indexA int, fB *b2Fixture, indexB int) void {
+	uninitialized.m_flags = b2Contact\e_enabledFlag
+
+	uninitialized.m_fixtureA = fA
+	uninitialized.m_fixtureB = fB
+
+	uninitialized.m_indexA = indexA
+	uninitialized.m_indexB = indexB
+
+	uninitialized.m_manifold.pointCount = 0
+
+	uninitialized.m_prev = null
+	uninitialized.m_next = null
+
+	uninitialized.m_nodeA.contact = null
+	uninitialized.m_nodeA.prev = null
+	uninitialized.m_nodeA.next = null
+	uninitialized.m_nodeA.other = null
+
+	uninitialized.m_nodeB.contact = null
+	uninitialized.m_nodeB.prev = null
+	uninitialized.m_nodeB.next = null
+	uninitialized.m_nodeB.other = null
+
+	uninitialized.m_toiCount = 0
+
+	uninitialized.m_friction = b2MixFriction(uninitialized.m_fixtureA.m_friction, uninitialized.m_fixtureB.m_friction)
+	uninitialized.m_restitution = b2MixRestitution(uninitialized.m_fixtureA.m_restitution, uninitialized.m_fixtureB.m_restitution)
+	uninitialized.m_restitutionThreshold = b2MixRestitutionThreshold(uninitialized.m_fixtureA.m_restitutionThreshold, uninitialized.m_fixtureB.m_restitutionThreshold)
+
+	uninitialized.m_tangentSpeed = 0.0f
+
+	uninitialized.f_defer = use_defer ? func null &__defer__(*$b2ContactLike) as ptr : null
+	uninitialized.f_Evaluate = func &Evaluate(*$b2ContactLike, *b2Manifold, *b2Transform, *b2Transform) as ptr
+}
+
+import "b2_chain_circle_contact.adept"
+import "b2_chain_polygon_contact.adept"
+import "b2_circle_contact.adept"
+import "b2_edge_circle_contact.adept"
+import "b2_edge_polygon_contact.adept"
+import "b2_polygon_circle_contact.adept"
+import "b2_polygon_contact.adept"

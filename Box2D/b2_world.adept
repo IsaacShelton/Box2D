@@ -1,0 +1,1228 @@
+
+// Ported by Isaac Shelton from Erin Catto's Box2D @ 95f74a46c077825478f989df6a81003ca538c2c2
+
+// MIT License
+
+// Copyright (c) 2020-2021 Isaac Shelton
+
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
+import "b2_block_allocator.adept"
+import "b2_contact_manager.adept"
+import "b2_math.adept"
+import "b2_stack_allocator.adept"
+import "b2_time_step.adept"
+import "b2_world_callbacks.adept"
+
+import "b2_contact_solver.adept"
+import "b2_island.adept"
+import "b2_body.adept"
+import "b2_broad_phase.adept"
+import "b2_chain_shape.adept"
+import "b2_circle_shape.adept"
+import "b2_collision.adept"
+import "b2_contact.adept"
+import "b2_draw.adept"
+import "b2_edge_shape.adept"
+import "b2_fixture.adept"
+import "b2_polygon_shape.adept"
+import "b2_pulley_joint.adept"
+import "b2_time_of_impact.adept"
+import "b2_timer.adept"
+
+/*
+REQUIRES:
+    struct b2AABB;
+    struct b2BodyDef;
+    struct b2Color;
+    struct b2JointDef;
+    class b2Body;
+    class b2Draw;
+    class b2Fixture;
+    class b2Joint;
+*/
+
+/// The world class manages all physics entities, dynamic simulation,
+/// and asynchronous queries. The world also contains efficient memory
+/// management facilities.
+struct b2World (
+    m_blockAllocator b2BlockAllocator,
+	m_stackAllocator b2StackAllocator,
+
+	m_contactManager b2ContactManager,
+
+	m_bodyList *b2Body,
+	m_jointList *b2Joint,
+
+	m_bodyCount int,
+	m_jointCount int,
+
+	m_gravity b2Vec2,
+	m_allowSleep bool,
+
+	m_destructionListener *b2DestructionListener,
+	m_debugDraw *b2Draw,
+
+	// This is used to compute the time step ratio to
+	// support a variable time step.
+	m_inv_dt0 float,
+
+	m_newContacts bool,
+	m_locked bool,
+	m_clearForces bool,
+
+	// These are for debugging the solver.
+	m_warmStarting bool,
+	m_continuousPhysics bool,
+	m_subStepping bool,
+
+	m_stepComplete bool,
+
+	m_profile b2Profile
+) {
+	/// Destruct the world. All physics entities are destroyed and all heap memory is released.
+	func __defer__ {
+        // Some shapes allocate using b2Alloc.
+		b *b2Body = this.m_bodyList
+
+		while b {
+			bNext *b2Body = b.m_next
+			f *b2Fixture = b.m_fixtureList
+
+			while f {
+				fNext *b2Fixture = f.m_next
+				f.m_proxyCount = 0
+				f.Destroy(&this.m_blockAllocator)
+				f = fNext
+			}
+
+			b = bNext
+		}
+    }
+
+	/// Register a destruction listener. The listener is owned by you and must
+	/// remain in scope.
+	func SetDestructionListener(listener *b2DestructionListener) void {
+        this.m_destructionListener = listener
+    }
+
+	/// Register a contact filter to provide specific control over collision.
+	/// Otherwise the default filter is used (b2_defaultFilter). The listener is
+	/// owned by you and must remain in scope.
+	func SetContactFilter(filter *b2ContactFilter) void {
+        this.m_contactManager.m_contactFilter = filter
+    }
+
+	/// Register a contact event listener. The listener is owned by you and must
+	/// remain in scope.
+	func SetContactListener(listener *b2ContactListener) void {
+        this.m_contactManager.m_contactListener = listener
+    }
+
+	/// Register a routine for debug drawing. The debug draw functions are called
+	/// inside with b2World::DebugDraw method. The debug draw object is owned
+	/// by you and must remain in scope.
+	func SetDebugDraw(debugDraw *b2Draw) void {
+        this.m_debugDraw = debugDraw
+    }
+
+	/// Create a rigid body given a definition. No reference to the definition
+	/// is retained.
+	/// @warning This function is locked during callbacks.
+	func CreateBody(in definition *b2BodyDef) *b2Body {
+        b2Assert(this.IsLocked() == false)
+		if this.IsLocked(), return null
+
+		b *b2Body = this.m_blockAllocator.Allocate(sizeof b2Body) as *b2Body
+		b2Body(b, definition, this)
+
+		// Add to world doubly linked list.
+		b.m_prev = null
+		b.m_next = this.m_bodyList
+		if this.m_bodyList, this.m_bodyList.m_prev = b
+		this.m_bodyList = b
+		++this.m_bodyCount
+
+		return b
+    }
+
+	/// Destroy a rigid body given a definition. No reference to the definition
+	/// is retained. This function is locked during callbacks.
+	/// @warning This automatically deletes all associated shapes and joints.
+	/// @warning This function is locked during callbacks.
+	func DestroyBody(b *b2Body) void {
+        b2Assert(this.m_bodyCount > 0)
+		b2Assert(this.IsLocked() == false)
+
+		if this.IsLocked(), return
+
+		// Delete the attached joints.
+		je *b2JointEdge = b.m_jointList
+		while je {
+			je0 *b2JointEdge = je
+			je = je.next
+
+			if this.m_destructionListener {
+				this.m_destructionListener.SayGoodbye(je0.joint)
+			}
+
+			this.DestroyJoint(je0.joint)
+
+			b.m_jointList = je
+		}
+		b.m_jointList = null
+
+		// Delete the attached contacts.
+		ce *b2ContactEdge = b.m_contactList
+		while ce {
+			ce0 *b2ContactEdge = ce
+			ce = ce.next
+			this.m_contactManager.Destroy(ce0.contact)
+		}
+		b.m_contactList = null
+
+		// Delete the attached fixtures. This destroys broad-phase proxies.
+		f *b2Fixture = b.m_fixtureList
+		while f {
+			f0 *b2Fixture = f
+			f = f.m_next
+
+			if this.m_destructionListener {
+				this.m_destructionListener.SayGoodbye(f0)
+			}
+
+			f0.DestroyProxies(&this.m_contactManager.m_broadPhase)
+			f0.Destroy(&this.m_blockAllocator)
+			f0.__defer__()
+			this.m_blockAllocator.Free(f0, sizeof b2Fixture)
+
+			b.m_fixtureList = f
+			b.m_fixtureCount -= 1
+		}
+		b.m_fixtureList = null
+		b.m_fixtureCount = 0
+
+		// Remove world body list.
+		if b.m_prev,             b.m_prev.m_next = b.m_next
+		if b.m_next,             b.m_next.m_prev = b.m_prev
+		if b == this.m_bodyList, this.m_bodyList = b.m_next
+		
+		--this.m_bodyCount
+		b.__defer__()
+		this.m_blockAllocator.Free(b, sizeof b2Body)
+    }
+
+	/// Create a joint to constrain bodies together. No reference to the definition
+	/// is retained. This may cause the connected bodies to cease colliding.
+	/// @warning This function is locked during callbacks.
+	func CreateJoint(in definition *b2JointDef) *b2Joint {
+        b2Assert(this.IsLocked() == false)
+		if this.IsLocked(), return null
+
+		j *b2Joint = b2Joint\Create(definition, &this.m_blockAllocator)
+
+		// Connect to the world list.
+		j.m_prev = null
+		j.m_next = this.m_jointList
+		if this.m_jointList {
+			this.m_jointList.m_prev = j
+		}
+		this.m_jointList = j
+		++this.m_jointCount
+
+		// Connect to the bodies' doubly linked lists.
+		j.m_edgeA.joint = j
+		j.m_edgeA.other = j.m_bodyB
+		j.m_edgeA.prev = null
+		j.m_edgeA.next = j.m_bodyA.m_jointList
+		if j.m_bodyA.m_jointList, j.m_bodyA.m_jointList.prev = &j.m_edgeA
+		j.m_bodyA.m_jointList = &j.m_edgeA
+
+		j.m_edgeB.joint = j
+		j.m_edgeB.other = j.m_bodyA
+		j.m_edgeB.prev = null
+		j.m_edgeB.next = j.m_bodyB.m_jointList
+		if j.m_bodyB.m_jointList, j.m_bodyB.m_jointList.prev = &j.m_edgeB
+		j.m_bodyB.m_jointList = &j.m_edgeB
+
+		bodyA *b2Body = definition.bodyA
+		bodyB *b2Body = definition.bodyB
+
+		// If the joint prevents collisions, then flag any contacts for filtering.
+		if definition.collideConnected == false {
+			edge *b2ContactEdge = bodyB.GetContactList()
+
+			while edge {
+				if edge.other == bodyA {
+					// Flag the contact for filtering at the next time step (where either
+					// body is awake).
+					edge.contact.FlagForFiltering()
+				}
+
+				edge = edge.next
+			}
+		}
+
+		// Note: creating a joint doesn't wake the bodies.
+
+		return j
+    }
+
+	/// Destroy a joint. This may cause the connected bodies to begin colliding.
+	/// @warning This function is locked during callbacks.
+	func DestroyJoint(j *b2Joint) void {
+        b2Assert(this.IsLocked() == false)
+		if this.IsLocked(), return
+
+		collideConnected bool = j.m_collideConnected
+
+		// Remove from the doubly linked list.
+		if j.m_prev, j.m_prev.m_next = j.m_next
+		if j.m_next, j.m_next.m_prev = j.m_prev
+		if j == this.m_jointList, this.m_jointList = j.m_next
+
+		// Disconnect from island graph.
+		bodyA *b2Body = j.m_bodyA
+		bodyB *b2Body = j.m_bodyB
+
+		// Wake up connected bodies.
+		bodyA.SetAwake(true)
+		bodyB.SetAwake(true)
+
+		// Remove from body 1.
+		if j.m_edgeA.prev, j.m_edgeA.prev.next = j.m_edgeA.next
+		if j.m_edgeA.next, j.m_edgeA.next.prev = j.m_edgeA.prev
+		if &j.m_edgeA == bodyA.m_jointList, bodyA.m_jointList = j.m_edgeA.next
+
+		j.m_edgeA.prev = null
+		j.m_edgeA.next = null
+
+		// Remove from body 2
+		if j.m_edgeB.prev, j.m_edgeB.prev.next = j.m_edgeB.next
+		if j.m_edgeB.next, j.m_edgeB.next.prev = j.m_edgeB.prev
+		if &j.m_edgeB == bodyB.m_jointList, bodyB.m_jointList = j.m_edgeB.next
+
+		j.m_edgeB.prev = null
+		j.m_edgeB.next = null
+
+		b2Joint\Destroy(j, &this.m_blockAllocator)
+
+		b2Assert(this.m_jointCount > 0)
+		--this.m_jointCount
+
+		// If the joint prevents collisions, then flag any contacts for filtering.
+		if collideConnected == false {
+			edge *b2ContactEdge = bodyB.GetContactList()
+			while edge {
+				if edge.other == bodyA {
+					// Flag the contact for filtering at the next time step (where either
+					// body is awake).
+					edge.contact.FlagForFiltering()
+				}
+
+				edge = edge.next
+			}
+		}
+    }
+
+	/// Take a time step. This performs collision detection, integration,
+	/// and constraint solution.
+	/// @param timeStep the amount of time to simulate, this should not vary.
+	/// @param velocityIterations for the velocity constraint solver.
+	/// @param positionIterations for the position constraint solver.
+	func Step(dt float, velocityIterations int, positionIterations int) void {
+        stepTimer POD b2Timer = POD b2Timer()
+
+		// If new fixtures were added, we need to find the new contacts.
+		if this.m_newContacts {
+			this.m_contactManager.FindNewContacts()
+			this.m_newContacts = false
+		}
+
+		this.m_locked = true
+
+		step POD b2TimeStep = undef
+		step.dt = dt
+		step.velocityIterations	= velocityIterations
+		step.positionIterations = positionIterations
+
+		if dt > 0.0f {
+			step.inv_dt = 1.0f / dt
+		} else {
+			step.inv_dt = 0.0f
+		}
+
+		step.dtRatio = this.m_inv_dt0 * dt
+		step.warmStarting = this.m_warmStarting
+		
+		// Update contacts. This is where some contacts are destroyed.
+		if true {
+			timer POD b2Timer = POD b2Timer()
+			this.m_contactManager.Collide()
+			this.m_profile.collide = timer.GetMilliseconds()
+		}
+
+		// Integrate velocities, solve velocity constraints, and integrate positions.
+		if this.m_stepComplete && step.dt > 0.0f {
+			timer POD b2Timer = POD b2Timer()
+			this.Solve(&step)
+			this.m_profile.solve = timer.GetMilliseconds()
+		}
+
+		// Handle TOI events.
+		if this.m_continuousPhysics && step.dt > 0.0f {
+			timer POD b2Timer = POD b2Timer()
+			this.SolveTOI(&step)
+			this.m_profile.solveTOI = timer.GetMilliseconds()
+		}
+
+		if step.dt > 0.0f {
+			this.m_inv_dt0 = step.inv_dt
+		}
+
+		if this.m_clearForces {
+			this.ClearForces()
+		}
+
+		this.m_locked = false
+		this.m_profile.step = stepTimer.GetMilliseconds()
+    }
+
+	/// Manually clear the force buffer on all bodies. By default, forces are cleared automatically
+	/// after each call to Step. The default behavior is modified by calling SetAutoClearForces.
+	/// The purpose of this function is to support sub-stepping. Sub-stepping is often used to maintain
+	/// a fixed sized time step under a variable frame-rate.
+	/// When you perform sub-stepping you will disable auto clearing of forces and instead call
+	/// ClearForces after all sub-steps are complete in one pass of your game loop.
+	/// @see SetAutoClearForces
+	func ClearForces() void {
+        for(body *b2Body = this.m_bodyList; body; body = body.GetNext()){
+			body.m_force.SetZero()
+			body.m_torque = 0.0f
+		}
+    }
+
+	/// Call this to draw shapes and other debug draw data. This is intentionally non-const.
+	func DebugDraw() void {
+        if this.m_debugDraw == null, return
+
+		flags uint = this.m_debugDraw.GetFlags()
+
+		if flags & b2Draw\e_shapeBit {
+			for(b *b2Body = this.m_bodyList; b; b = b.GetNext()){
+				xf *b2Transform = b.GetTransform()
+
+				for(f *b2Fixture = b.GetFixtureList(); f; f = f.GetNext()){
+					if b.GetType() == b2_dynamicBody && b.m_mass == 0.0f {
+						// Bad body
+						c POD b2Color = POD b2Color(1.0f, 0.0f, 0.0f)
+						this.DrawShape(f, xf, &c)
+					} else if b.IsEnabled() == false {
+						c POD b2Color = POD b2Color(0.5f, 0.5f, 0.3f)
+						this.DrawShape(f, xf, &c)
+					} else if b.GetType() == b2_staticBody {
+						c POD b2Color = POD b2Color(0.5f, 0.9f, 0.5f)
+						this.DrawShape(f, xf, &c)
+					} else if b.GetType() == b2_kinematicBody {
+						c POD b2Color = POD b2Color(0.5f, 0.5f, 0.9f)
+						this.DrawShape(f, xf, &c)
+					} else if b.IsAwake() == false {
+						c POD b2Color = POD b2Color(0.6f, 0.6f, 0.6f)
+						this.DrawShape(f, xf, &c)
+					} else {
+						c POD b2Color = POD b2Color(0.9f, 0.7f, 0.7f)
+						this.DrawShape(f, xf, &c)
+					}
+				}
+			}
+		}
+
+		if flags & b2Draw\e_jointBit {
+			for(j *b2Joint = this.m_jointList; j; j = j.GetNext()){
+				j.Draw(this.m_debugDraw)
+			}
+		}
+
+		if flags & b2Draw\e_pairBit {
+			color POD b2Color = POD b2Color(0.3f, 0.9f, 0.9f)
+
+			for(c *b2Contact = this.m_contactManager.m_contactList; c; c = c.GetNext()){
+				fixtureA *b2Fixture = c.GetFixtureA()
+				fixtureB *b2Fixture = c.GetFixtureB()
+				indexA int = c.GetChildIndexA()
+				indexB int = c.GetChildIndexB()
+				cA POD b2Vec2 = POD fixtureA.GetAABB(indexA).GetCenter()
+				cB POD b2Vec2 = POD fixtureB.GetAABB(indexB).GetCenter()
+
+				this.m_debugDraw.DrawSegment(&cA, &cB, &color)
+			}
+		}
+
+		if flags & b2Draw\e_aabbBit {
+			color POD b2Color = POD b2Color(0.9f, 0.3f, 0.9f)
+			bp *b2BroadPhase = &this.m_contactManager.m_broadPhase
+
+			for(b *b2Body = this.m_bodyList; b; b = b.GetNext()){
+				if b.IsEnabled() == false, continue
+
+				for(f *b2Fixture = b.GetFixtureList(); f; f = f.GetNext()){
+					for(i int = 0; i < f.m_proxyCount; ++i){
+						proxy *b2FixtureProxy = f.m_proxies at i
+						aabb POD b2AABB = POD *bp.GetFatAABB(proxy.proxyId)
+						vs 4 b2Vec2 = undef
+						vs[0].Set(aabb.lowerBound.x, aabb.lowerBound.y)
+						vs[1].Set(aabb.upperBound.x, aabb.lowerBound.y)
+						vs[2].Set(aabb.upperBound.x, aabb.upperBound.y)
+						vs[3].Set(aabb.lowerBound.x, aabb.upperBound.y)
+
+						this.m_debugDraw.DrawPolygon(cast *b2Vec2 &vs, 4, &color)
+					}
+				}
+			}
+		}
+
+		if flags & b2Draw\e_centerOfMassBit {
+			for(b *b2Body = this.m_bodyList; b; b = b.GetNext()){
+				xf POD b2Transform = POD *b.GetTransform()
+				xf.p = *b.GetWorldCenter()
+				this.m_debugDraw.DrawTransform(&xf)
+			}
+		}
+    }
+
+	/// Query the world for all fixtures that potentially overlap the
+	/// provided AABB.
+	/// @param callback a user implemented callback class.
+	/// @param aabb the query box.
+	func QueryAABB(callback *b2QueryCallback, in aabb POD b2AABB) void { this.QueryAABB(callback, &aabb); }
+	func QueryAABB(callback *b2QueryCallback, in aabb *b2AABB) void {
+        wrapper POD b2WorldQueryWrapper = undef
+		wrapper.broadPhase = &this.m_contactManager.m_broadPhase
+		wrapper.callback = callback
+		this.m_contactManager.m_broadPhase.Query(&wrapper, aabb)
+    }
+
+	/// Ray-cast the world for all fixtures in the path of the ray. Your callback
+	/// controls whether you get the closest point, any point, or n-points.
+	/// The ray-cast ignores shapes that contain the starting point.
+	/// @param callback a user implemented callback class.
+	/// @param point1 the ray starting point
+	/// @param point2 the ray ending point
+	func RayCast(callback *b2RayCastCallback, in point1, point2 POD b2Vec2) void { this.RayCast(callback, &point1, &point2); }
+	func RayCast(callback *b2RayCastCallback, in point1, point2 *b2Vec2) void {
+        wrapper POD b2WorldRayCastWrapper = undef
+		wrapper.broadPhase = &this.m_contactManager.m_broadPhase
+		wrapper.callback = callback
+		input POD b2RayCastInput = undef
+		input.maxFraction = 1.0f
+		input.p1 = *point1
+		input.p2 = *point2
+		this.m_contactManager.m_broadPhase.RayCast(&wrapper, &input)
+    }
+
+	/// Get the world body list. With the returned body, use b2Body::GetNext to get
+	/// the next body in the world list. A null body indicates the end of the list.
+	/// @return the head of the world body list.
+	func GetBodyList() *b2Body { return this.m_bodyList; }
+
+	/// Get the world joint list. With the returned joint, use b2Joint::GetNext to get
+	/// the next joint in the world list. A null joint indicates the end of the list.
+	/// @return the head of the world joint list.
+	func GetJointList() *b2Joint { return this.m_jointList; }
+
+	/// Get the world contact list. With the returned contact, use b2Contact::GetNext to get
+	/// the next contact in the world list. A null contact indicates the end of the list.
+	/// @return the head of the world contact list.
+	/// @warning contacts are created and destroyed in the middle of a time step.
+	/// Use b2ContactListener to avoid missing contacts.
+	func GetContactList() *b2Contact { return this.m_contactManager.m_contactList; }
+
+	/// Enable/disable sleep.
+	func SetAllowSleeping(flag bool) void {
+        if flag == this.m_allowSleep, return
+
+		this.m_allowSleep = flag
+
+		if this.m_allowSleep == false {
+			for(b *b2Body = this.m_bodyList; b; b = b.m_next){
+				b.SetAwake(true)
+			}
+		}
+    }
+
+	func GetAllowSleeping() bool { return this.m_allowSleep; }
+
+	/// Enable/disable warm starting. For testing.
+	func SetWarmStarting(flag bool) void { this.m_warmStarting = flag; }
+	func GetWarmStarting() bool { return this.m_warmStarting; }
+
+	/// Enable/disable continuous physics. For testing.
+	func SetContinuousPhysics(flag bool) void { this.m_continuousPhysics = flag; }
+	func GetContinuousPhysics() bool { return this.m_continuousPhysics; }
+
+	/// Enable/disable single stepped continuous physics. For testing.
+	func SetSubStepping(flag bool) void { this.m_subStepping = flag; }
+	func GetSubStepping() bool { return this.m_subStepping; }
+
+	/// Get the number of broad-phase proxies.
+	func GetProxyCount() int {
+        return this.m_contactManager.m_broadPhase.GetProxyCount()
+    }
+
+	/// Get the number of bodies.
+	func GetBodyCount() int { return this.m_bodyCount; }
+
+	/// Get the number of joints.
+	func GetJointCount() int { return this.m_jointCount; }
+
+	/// Get the number of contacts (each may have 0 or more contact points).
+	func GetContactCount() int { return this.m_contactManager.m_contactCount; }
+
+	/// Get the height of the dynamic tree.
+	func GetTreeHeight() int {
+        return this.m_contactManager.m_broadPhase.GetTreeHeight()
+    }
+
+	/// Get the balance of the dynamic tree.
+	func GetTreeBalance() int {
+        return this.m_contactManager.m_broadPhase.GetTreeBalance()
+    }
+
+	/// Get the quality metric of the dynamic tree. The smaller the better.
+	/// The minimum is 1.
+	func GetTreeQuality() float {
+        return this.m_contactManager.m_broadPhase.GetTreeQuality()
+    }
+
+	/// Change the global gravity vector.
+    func SetGravity(in gravity POD b2Vec2) { this.SetGravity(&gravity); }
+	func SetGravity(in gravity *b2Vec2) void { this.m_gravity = *gravity; }
+    
+	/// Get the global gravity vector.
+	func GetGravity() b2Vec2 { return this.m_gravity; }
+
+	/// Is the world locked (in the middle of a time step).
+	func IsLocked() bool { return this.m_locked; }
+
+	/// Set flag to control automatic clearing of forces after each time step.
+	func SetAutoClearForces(flag bool) void { this.m_clearForces = flag; }
+
+	/// Get the flag that controls automatic clearing of forces after each time step.
+	func GetAutoClearForces() bool { return this.m_clearForces; }
+
+	/// Shift the world origin. Useful for large worlds.
+	/// The body shift formula is: position -= newOrigin
+	/// @param newOrigin the new origin with respect to the old origin
+	func ShiftOrigin(in newOrigin POD b2Vec2) void {
+        b2Assert(this.m_locked == false)
+		if this.m_locked, return
+
+		for(b *b2Body = this.m_bodyList; b; b = b.m_next){
+			b.m_xf.p.SubtractAssign(newOrigin)
+			b.m_sweep.c0.SubtractAssign(newOrigin)
+			b.m_sweep.c.SubtractAssign(newOrigin)
+		}
+
+		for(j *b2Joint = this.m_jointList; j; j = j.m_next){
+			j.ShiftOrigin(&newOrigin)
+		}
+
+		this.m_contactManager.m_broadPhase.ShiftOrigin(&newOrigin)
+    }
+
+	/// Get the contact manager for testing.
+	func GetContactManager() *b2ContactManager { return &this.m_contactManager; }
+
+	/// Get the current profile.
+	func GetProfile() *b2Profile { return &this.m_profile; }
+
+	/// Dump the world into the log file.
+	/// @warning this should be called outside of a time step.
+	func Dump() void {
+        if this.m_locked, return
+
+		b2OpenDump('box2d_dump.inl')
+
+		b2Dump('b2Vec2 g(%hf, %hf);\n', cast double this.m_gravity.x, cast double this.m_gravity.y)
+		b2Dump('m_world->SetGravity(g);\n')
+
+		b2Dump('b2Body** bodies = (b2Body**)b2Alloc(%d * sizeof(b2Body*));\n', this.m_bodyCount)
+		b2Dump('b2Joint** joints = (b2Joint**)b2Alloc(%d * sizeof(b2Joint*));\n', this.m_jointCount)
+
+		i int = 0
+		for(b *b2Body = this.m_bodyList; b; b = b.m_next){
+			b.m_islandIndex = i
+			b.Dump()
+			++i
+		}
+
+		i = 0
+		for(j *b2Joint = this.m_jointList; j; j = j.m_next){
+			j.m_index = i
+			++i
+		}
+
+		// First pass on joints, skip gear joints.
+		for(j *b2Joint = this.m_jointList; j; j = j.m_next){
+			if j.m_type == b2JointType::e_gearJoint, continue
+
+			b2Dump('{\n');
+			j.Dump();
+			b2Dump('}\n');
+		}
+
+		// Second pass on joints, only gear joints.
+		for(j *b2Joint = this.m_jointList; j; j = j.m_next){
+			if j.m_type != b2JointType::e_gearJoint, continue
+
+			b2Dump('{\n')
+			j.Dump()
+			b2Dump('}\n')
+		}
+
+		b2Dump('b2Free(joints);\n')
+		b2Dump('b2Free(bodies);\n')
+		b2Dump('joints = nullptr;\n')
+		b2Dump('bodies = nullptr;\n')
+
+		b2CloseDump()
+    }
+
+    // --------------------------------------------------------
+
+	// Find islands, integrate and solve constraints, solve position constraints
+    func Solve(in step *b2TimeStep) void {
+		this.m_profile.solveInit = 0.0f
+		this.m_profile.solveVelocity = 0.0f
+		this.m_profile.solvePosition = 0.0f
+
+		// Size the island for the worst case.
+		island b2Island = undef
+		b2Island(&island, this.m_bodyCount, this.m_contactManager.m_contactCount, this.m_jointCount, &this.m_stackAllocator, this.m_contactManager.m_contactListener)
+
+		// Clear all the island flags.
+		for(b *b2Body = this.m_bodyList; b; b = b.m_next){
+			b.m_flags &= ~b2Body\e_islandFlag
+		}
+		for(c *b2Contact = this.m_contactManager.m_contactList; c; c = c.m_next){
+			c.m_flags &= ~b2Contact\e_islandFlag
+		}
+		for(j *b2Joint = this.m_jointList; j; j = j.m_next){
+			j.m_islandFlag = false
+		}
+
+		// Build and simulate all awake islands.
+		stackSize int = this.m_bodyCount
+		stack **b2Body = this.m_stackAllocator.Allocate(stackSize * sizeof *b2Body) as **b2Body
+		for(seed *b2Body = this.m_bodyList; seed; seed = seed.m_next){
+
+			if seed.m_flags & b2Body\e_islandFlag, continue
+			if seed.IsAwake() == false || seed.IsEnabled() == false, continue
+
+			// The seed can be dynamic or kinematic.
+			if seed.GetType() == b2_staticBody, continue
+
+			// Reset island and stack.
+			island.Clear()
+			stackCount int = 0
+			stack[stackCount++] = seed
+			seed.m_flags |= b2Body\e_islandFlag
+
+			// Perform a depth first search (DFS) on the constraint graph.
+			while stackCount > 0 {
+				// Grab the next body off the stack and add it to the island.
+				b *b2Body = stack[--stackCount]
+				b2Assert(b.IsEnabled() == true)
+				island.Add(b)
+
+				// To keep islands as small as possible, we don't
+				// propagate islands across static bodies.
+				if b.GetType() == b2_staticBody, continue
+
+				// Make sure the body is awake (without resetting sleep timer).
+				b.m_flags |= b2Body\e_awakeFlag
+
+				// Search all contacts connected to this body.
+				for(ce *b2ContactEdge = b.m_contactList; ce; ce = ce.next){
+					contact *b2Contact = ce.contact
+
+					// Has this contact already been added to an island?
+					if contact.m_flags & b2Contact\e_islandFlag, continue
+
+					// Is this contact solid and touching?
+					if contact.IsEnabled() == false || contact.IsTouching() == false, continue
+
+					// Skip sensors.
+					sensorA bool = contact.m_fixtureA.m_isSensor
+					sensorB bool = contact.m_fixtureB.m_isSensor
+					if sensorA || sensorB, continue
+
+					island.Add(contact)
+					contact.m_flags |= b2Contact\e_islandFlag
+
+					other *b2Body = ce.other
+
+					// Was the other body already added to this island?
+					if other.m_flags & b2Body\e_islandFlag, continue
+
+					b2Assert(stackCount < stackSize)
+					stack[stackCount++] = other
+					other.m_flags |= b2Body\e_islandFlag
+				}
+
+				// Search all joints connect to this body.
+				for(je *b2JointEdge = b.m_jointList; je; je = je.next){
+					if je.joint.m_islandFlag == true, continue
+
+					other *b2Body = je.other
+
+					// Don't simulate joints connected to diabled bodies.
+					if other.IsEnabled() == false, continue
+
+					island.Add(je.joint)
+					je.joint.m_islandFlag = true
+
+					if other.m_flags & b2Body\e_islandFlag, continue
+
+					b2Assert(stackCount < stackSize)
+					stack[stackCount++] = other
+					other.m_flags |= b2Body\e_islandFlag
+				}
+			}
+
+			profile POD b2Profile = undef
+			island.Solve(&profile, step, &this.m_gravity, this.m_allowSleep)
+			this.m_profile.solveInit += profile.solveInit
+			this.m_profile.solveVelocity += profile.solveVelocity
+			this.m_profile.solvePosition += profile.solvePosition
+
+			// Post solve cleanup.
+			for(i int = 0; i < island.m_bodyCount; ++i){
+				// Allow static bodies to participate in other islands.
+				b *b2Body = island.m_bodies[i]
+				if b.GetType() == b2_staticBody {
+					b.m_flags &= ~b2Body\e_islandFlag
+				}
+			}
+		}
+
+		this.m_stackAllocator.Free(stack)
+
+		if true {
+			timer POD b2Timer = b2Timer()
+
+			// Synchronize fixtures, check for out of range bodies.
+			for(b *b2Body = this.m_bodyList; b; b = b.GetNext()){
+				// If a body was not in an island then it did not move.
+				if (b.m_flags & b2Body\e_islandFlag) == 0, continue
+
+				if b.GetType() == b2_staticBody, continue
+
+				// Update fixtures (for broad-phase).
+				b.SynchronizeFixtures()
+			}
+
+			// Look for new contacts.
+			this.m_contactManager.FindNewContacts()
+			this.m_profile.broadphase = timer.GetMilliseconds()
+		}
+    }
+
+	// Find TOI contacts and solve them.
+	func SolveTOI(in step *b2TimeStep) void {
+		island b2Island = undef
+		b2Island(&island, 2 * b2_maxTOIContacts, b2_maxTOIContacts, 0, &this.m_stackAllocator, this.m_contactManager.m_contactListener)
+
+		if this.m_stepComplete {
+			for(b *b2Body = this.m_bodyList; b; b = b.m_next){
+				b.m_flags &= ~b2Body\e_islandFlag
+				b.m_sweep.alpha0 = 0.0f
+			}
+
+			for(c *b2Contact = this.m_contactManager.m_contactList; c; c = c.m_next){
+				// Invalidate TOI
+				c.m_flags &= ~(b2Contact\e_toiFlag | b2Contact\e_islandFlag)
+				c.m_toiCount = 0
+				c.m_toi = 1.0f
+			}
+		}
+
+		// Find TOI events and solve them.
+		until break {
+			// Find the first TOI.
+			minContact *b2Contact = null
+			minAlpha float = 1.0f
+
+			for(c *b2Contact = this.m_contactManager.m_contactList; c; c = c.m_next){
+				// Is this contact disabled?
+				if c.IsEnabled() == false, continue
+
+				// Prevent excessive sub-stepping.
+				if c.m_toiCount > b2_maxSubSteps, continue
+
+				alpha float = 1.0f
+				if c.m_flags & b2Contact\e_toiFlag {
+					// This contact has a valid cached TOI.
+					alpha = c.m_toi
+				} else {
+					fA *b2Fixture = c.GetFixtureA()
+					fB *b2Fixture = c.GetFixtureB()
+
+					// Is there a sensor?
+					if fA.IsSensor() || fB.IsSensor(), continue
+
+					bA *b2Body = fA.GetBody()
+					bB *b2Body = fB.GetBody()
+
+					typeA b2BodyType = bA.m_type
+					typeB b2BodyType = bB.m_type
+					b2Assert(typeA == b2_dynamicBody || typeB == b2_dynamicBody)
+
+					activeA bool = bA.IsAwake() && typeA != b2_staticBody
+					activeB bool = bB.IsAwake() && typeB != b2_staticBody
+
+					// Is at least one body active (awake and dynamic or kinematic)?
+					if activeA == false && activeB == false {
+						continue
+					}
+
+					collideA bool = bA.IsBullet() || typeA != b2_dynamicBody
+					collideB bool = bB.IsBullet() || typeB != b2_dynamicBody
+
+					// Are these two non-bullet dynamic bodies?
+					if collideA == false && collideB == false, continue
+
+					// Compute the TOI for this contact.
+					// Put the sweeps onto the same time interval.
+					alpha0 float = bA.m_sweep.alpha0
+
+					if bA.m_sweep.alpha0 < bB.m_sweep.alpha0 {
+						alpha0 = bB.m_sweep.alpha0
+						bA.m_sweep.Advance(alpha0)
+					} else if bB.m_sweep.alpha0 < bA.m_sweep.alpha0 {
+						alpha0 = bA.m_sweep.alpha0
+						bB.m_sweep.Advance(alpha0)
+					}
+
+					b2Assert(alpha0 < 1.0f)
+
+					indexA int = c.GetChildIndexA()
+					indexB int = c.GetChildIndexB()
+
+					// Compute the time of impact in interval [0, minTOI]
+					input POD b2TOIInput = undef
+					input.proxyA.Set(fA.GetShape(), indexA)
+					input.proxyB.Set(fB.GetShape(), indexB)
+					input.sweepA = bA.m_sweep
+					input.sweepB = bB.m_sweep
+					input.tMax = 1.0f
+
+					output POD b2TOIOutput = undef
+					b2TimeOfImpact(&output, &input)
+
+					// Beta is the fraction of the remaining portion of the .
+					beta float = output.t
+					if output.state == b2TOIOutput\State::e_touching {
+						alpha = b2Min(alpha0 + (1.0f - alpha0) * beta, 1.0f)
+					} else {
+						alpha = 1.0f
+					}
+
+					c.m_toi = alpha
+					c.m_flags |= b2Contact\e_toiFlag
+				}
+
+				if alpha < minAlpha {
+					// This is the minimum TOI found so far.
+					minContact = c
+					minAlpha = alpha
+				}
+			}
+
+			if minContact == null || 1.0f - 10.0f * b2_epsilon < minAlpha {
+				// No more TOI events. Done!
+				this.m_stepComplete = true
+				break
+			}
+
+			// Advance the bodies to the TOI.
+			fA *b2Fixture = minContact.GetFixtureA()
+			fB *b2Fixture = minContact.GetFixtureB()
+			bA *b2Body = fA.GetBody()
+			bB *b2Body = fB.GetBody()
+
+			backup1 POD b2Sweep = POD bA.m_sweep
+			backup2 POD b2Sweep = POD bB.m_sweep
+
+			bA.Advance(minAlpha)
+			bB.Advance(minAlpha)
+
+			// The TOI contact likely has some new contact points.
+			minContact.Update(this.m_contactManager.m_contactListener)
+			minContact.m_flags &= ~b2Contact\e_toiFlag
+			++minContact.m_toiCount
+
+			// Is the contact solid?
+			if minContact.IsEnabled() == false || minContact.IsTouching() == false {
+				// Restore the sweeps.
+				minContact.SetEnabled(false)
+				bA.m_sweep = backup1
+				bB.m_sweep = backup2
+				bA.SynchronizeTransform()
+				bB.SynchronizeTransform()
+				continue
+			}
+
+			bA.SetAwake(true)
+			bB.SetAwake(true)
+
+			// Build the island
+			island.Clear()
+			island.Add(bA)
+			island.Add(bB)
+			island.Add(minContact)
+
+			bA.m_flags |= b2Body\e_islandFlag
+			bB.m_flags |= b2Body\e_islandFlag
+			minContact.m_flags |= b2Contact\e_islandFlag
+
+			// Get contacts on bodyA and bodyB.
+			bodies 2 *b2Body = undef
+			bodies[0] = bA
+			bodies[1] = bB
+			
+			for(i int = 0; i < 2; ++i){
+				body *b2Body = bodies[i]
+
+				if body.m_type == b2_dynamicBody {
+					for(ce *b2ContactEdge = body.m_contactList; ce; ce = ce.next) {
+						if island.m_bodyCount == island.m_bodyCapacity, break
+						if island.m_contactCount == island.m_contactCapacity, break
+
+						contact *b2Contact = ce.contact
+
+						// Has this contact already been added to the island?
+						if contact.m_flags & b2Contact\e_islandFlag, continue
+
+						// Only add static, kinematic, or bullet bodies.
+						other *b2Body = ce.other
+						if other.m_type == b2_dynamicBody && body.IsBullet() == false && other.IsBullet() == false {
+							continue
+						}
+
+						// Skip sensors.
+						sensorA bool = contact.m_fixtureA.m_isSensor
+						sensorB bool = contact.m_fixtureB.m_isSensor
+						if sensorA || sensorB, continue
+
+						// Tentatively advance the body to the TOI.
+						backup POD b2Sweep = POD other.m_sweep
+						if (other.m_flags & b2Body\e_islandFlag) == 0 {
+							other.Advance(minAlpha)
+						}
+
+						// Update the contact points
+						contact.Update(this.m_contactManager.m_contactListener)
+
+						// Was the contact disabled by the user?
+						if contact.IsEnabled() == false {
+							other.m_sweep = backup
+							other.SynchronizeTransform()
+							continue
+						}
+
+						// Are there contact points?
+						if contact.IsTouching() == false {
+							other.m_sweep = backup
+							other.SynchronizeTransform()
+							continue
+						}
+
+						// Add the contact to the island
+						contact.m_flags |= b2Contact\e_islandFlag
+						island.Add(contact)
+
+						// Has the other body already been added to the island?
+						if other.m_flags & b2Body\e_islandFlag, continue
+						
+						// Add the other body to the island.
+						other.m_flags |= b2Body\e_islandFlag
+
+						if other.m_type != b2_staticBody {
+							other.SetAwake(true)
+						}
+
+						island.Add(other)
+					}
+				}
+			}
+
+			subStep POD b2TimeStep = undef
+			subStep.dt = (1.0f - minAlpha) * step.dt
+			subStep.inv_dt = 1.0f / subStep.dt
+			subStep.dtRatio = 1.0f
+			subStep.positionIterations = 20
+			subStep.velocityIterations = step.velocityIterations
+			subStep.warmStarting = false
+			island.SolveTOI(&subStep, bA.m_islandIndex, bB.m_islandIndex)
+
+			// Reset island flags and synchronize broad-phase proxies.
+			for(i int = 0; i < island.m_bodyCount; ++i){
+				body *b2Body = island.m_bodies[i]
+				body.m_flags &= ~b2Body\e_islandFlag
+
+				if body.m_type != b2_dynamicBody, continue
+
+				body.SynchronizeFixtures()
+
+				// Invalidate all contact TOIs on this displaced body.
+				for(ce *b2ContactEdge = body.m_contactList; ce; ce = ce.next){
+					ce.contact.m_flags &= ~(b2Contact\e_toiFlag | b2Contact\e_islandFlag)
+				}
+			}
+
+			// Commit fixture proxy movements to the broad-phase so that new contacts are created.
+			// Also, some contacts can be destroyed.
+			this.m_contactManager.FindNewContacts()
+
+			if this.m_subStepping {
+				this.m_stepComplete = false
+				break
+			}
+		}
+    }
+    
+	func DrawShape(fixture *b2Fixture, in xf *b2Transform, in color *b2Color) void {
+        switch fixture.GetType() {
+		case b2ShapeType::e_circle
+			circle *b2CircleShape = fixture.GetShape() as *b2CircleShape
+
+			center POD b2Vec2 = POD b2Mul(xf, circle.m_p)
+			radius float = circle.m_radius
+			axis POD b2Vec2 = POD b2Mul(xf.q, b2Vec2(1.0f, 0.0f))
+
+			this.m_debugDraw.DrawSolidCircle(&center, radius, &axis, color)
+
+		case b2ShapeType::e_edge
+			edge *b2EdgeShape = fixture.GetShape() as *b2EdgeShape
+			v1 POD b2Vec2 = POD b2Mul(xf, edge.m_vertex1)
+			v2 POD b2Vec2 = POD b2Mul(xf, edge.m_vertex2)
+			this.m_debugDraw.DrawSegment(&v1, &v2, color)
+
+			if edge.m_oneSided == false {
+				this.m_debugDraw.DrawPoint(&v1, 4.0f, color)
+				this.m_debugDraw.DrawPoint(&v2, 4.0f, color)
+			}
+
+		case b2ShapeType::e_chain
+			chain *b2ChainShape = fixture.GetShape() as *b2ChainShape
+			count int = chain.m_count
+			vertices *b2Vec2 = chain.m_vertices
+
+			v1 POD b2Vec2 = POD b2Mul(xf, vertices[0])
+
+			for(i int = 1; i < count; ++i){
+				v2 POD b2Vec2 = POD b2Mul(xf, vertices[i])
+				this.m_debugDraw.DrawSegment(&v1, &v2, color)
+				v1 = v2
+			}
+
+		case b2ShapeType::e_polygon
+			poly *b2PolygonShape = fixture.GetShape() as *b2PolygonShape
+			vertexCount int = poly.m_count
+			b2Assert(vertexCount <= b2_maxPolygonVertices)
+			vertices /*b2_maxPolygonVertices*/ 8 b2Vec2 = undef
+
+			for(i int = 0; i < vertexCount; ++i){
+				vertices[i] = b2Mul(xf, poly.m_vertices[i])
+			}
+
+			this.m_debugDraw.DrawSolidPolygon(cast *b2Vec2 &vertices, vertexCount, color)
+		
+		}
+
+		return
+    } // (end of b2World.DrawShape)
+}
+
+/// Construct a world object.
+/// @param gravity the world gravity vector.
+func b2World(uninitialized *b2World, in gravity *b2Vec2) void {
+	uninitialized.m_blockAllocator = b2BlockAllocator()
+	b2StackAllocator(&uninitialized.m_stackAllocator)
+
+    uninitialized.m_destructionListener = null
+	uninitialized.m_debugDraw = null
+
+	uninitialized.m_bodyList = null
+	uninitialized.m_jointList = null
+
+	uninitialized.m_bodyCount = 0
+	uninitialized.m_jointCount = 0
+
+	uninitialized.m_warmStarting = true
+	uninitialized.m_continuousPhysics = true
+	uninitialized.m_subStepping = false
+
+	uninitialized.m_stepComplete = true
+
+	uninitialized.m_allowSleep = true
+	uninitialized.m_gravity = POD *gravity
+
+	uninitialized.m_newContacts = false
+	uninitialized.m_locked = false
+	uninitialized.m_clearForces = true
+
+	uninitialized.m_inv_dt0 = 0.0f
+
+	uninitialized.m_contactManager = b2ContactManager()
+	uninitialized.m_contactManager.m_allocator = &uninitialized.m_blockAllocator
+
+	memset(&uninitialized.m_profile, 0, sizeof b2Profile)
+}
+
+// --------------------------------------------------------
+
+struct b2WorldQueryWrapper (broadPhase *b2BroadPhase, callback *b2QueryCallback) {
+	func QueryCallback(proxyId int) bool
+	{
+		proxy *b2FixtureProxy = this.broadPhase.GetUserData(proxyId) as *b2FixtureProxy
+		return this.callback.ReportFixture(proxy.fixture)
+	}
+}
+
+struct b2WorldRayCastWrapper (broadPhase *b2BroadPhase, callback *b2RayCastCallback) {
+	func RayCastCallback(in input *b2RayCastInput, proxyId int) float
+	{
+		userData ptr = this.broadPhase.GetUserData(proxyId)
+		proxy *b2FixtureProxy = userData as *b2FixtureProxy
+		fixture *b2Fixture = proxy.fixture
+		index int = proxy.childIndex
+		output POD b2RayCastOutput = undef
+		hit bool = fixture.RayCast(&output, input, index)
+
+		if hit {
+			fraction float = output.fraction
+			point POD b2Vec2 = input.p1 *(1.0f - fraction) + input.p2 * fraction
+			return this.callback.ReportFixture(fixture, &point, &output.normal, fraction)
+		}
+
+		return input.maxFraction
+	}
+}

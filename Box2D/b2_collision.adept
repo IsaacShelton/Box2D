@@ -1,0 +1,393 @@
+
+// Ported by Isaac Shelton from Erin Catto's Box2D @ 95f74a46c077825478f989df6a81003ca538c2c2
+
+// MIT License
+
+// Copyright (c) 2020-2021 Isaac Shelton
+
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
+import "b2_math.adept"
+import "b2_distance.adept"
+
+/// @file
+/// Structures and functions used for computing contact points, distance
+/// queries, and TOI queries.
+
+/*
+REQUIRES
+    class b2Shape    class b2CircleShape    class b2EdgeShape    class b2PolygonShape*/
+
+b2_nullFeature ubyte = 255
+
+/// The features that intersect to form the contact point
+/// This must be 4 bytes or less.
+struct b2ContactFeature (indexA, indexB, typeA, typeB ubyte)
+
+enum b2ContactFeatureType (e_vertex, e_face)
+
+/// Contact ids to facilitate warm starting.
+union b2ContactID (
+    cf b2ContactFeature,
+    key uint                ///< Used to quickly compare contact ids.
+)
+
+/// A manifold point is a contact point belonging to a contact
+/// manifold. It holds details related to the geometry and dynamics
+/// of the contact points.
+/// The local point usage depends on the manifold type:
+/// -e_circles: the local center of circleB
+/// -e_faceA: the local center of cirlceB or the clip point of polygonB
+/// -e_faceB: the clip point of polygonA
+/// This structure is stored across time steps, so we keep it small.
+/// Note: the impulses are used for internal caching and may not
+/// provide reliable contact forces, especially for high speed collisions.
+struct b2ManifoldPoint (
+    localPoint b2Vec2,     ///< usage depends on manifold type
+    normalImpulse float,   ///< the non-penetration impulse
+    tangentImpulse float,  ///< the friction impulse
+    id b2ContactID         ///< uniquely identifies a contact point between two shapes
+)
+
+/// A manifold for two touching convex shapes.
+/// Box2D supports multiple types of contact:
+/// - clip point versus plane with radius
+/// - point versus point with radius (circles)
+/// The local point usage depends on the manifold type:
+/// -e_circles: the local center of circleA
+/// -e_faceA: the center of faceA
+/// -e_faceB: the center of faceB
+/// Similarly the local normal usage:
+/// -e_circles: not used
+/// -e_faceA: the normal on polygonA
+/// -e_faceB: the normal on polygonB
+/// We store contacts in this way so that position correction can
+/// account for movement, which is critical for continuous physics.
+/// All contact scenarios must be expressed in one of these types.
+/// This structure is stored across time steps, so we keep it small.
+struct b2Manifold (
+    points 2 /* b2_maxManifoldPoints */ b2ManifoldPoint, ///< the points of contact
+    localNormal b2Vec2,                                  ///< not use for Type::e_points
+    localPoint b2Vec2,                                   ///< usage depends on manifold type
+    type b2ManifoldType,
+    pointCount int                                       ///< the number of manifold points
+)
+
+enum b2ManifoldType (e_circles, e_faceA, e_faceB)
+
+/// This is used to compute the current state of a contact manifold.
+struct b2WorldManifold (
+    normal b2Vec2,
+    points 2 /* b2_maxManifoldPoints */ b2Vec2,
+    separations 2 /* b2_maxManifoldPoints */ float
+) {
+    /// Evaluate the manifold with supplied transforms. This assumes
+	/// modest motion from the original state. This does not change the
+	/// point count, impulses, etc. The radii must come from the shapes
+	/// that generated the manifold.
+    func Initialize(manifold *b2Manifold, in xfA *b2Transform, radiusA float, in xfB *b2Transform, radiusB float) void {
+        if manifold.pointCount == 0, return
+
+        switch manifold.type {
+        case b2ManifoldType::e_circles
+            this.normal.Set(1.0f, 0.0f)
+
+            pointA POD b2Vec2 = b2Mul(xfA, manifold.localPoint)
+            pointB POD b2Vec2 = b2Mul(xfB, manifold.points[0].localPoint)
+
+            if b2DistanceSquared(pointA, pointB) > b2_epsilon * b2_epsilon {
+                this.normal = pointB - pointA
+                this.normal.Normalize()
+            }
+
+            cA POD b2Vec2 = pointA + radiusA * this.normal
+            cB POD b2Vec2 = pointB - radiusB * this.normal
+            this.points[0] = 0.5f * (cA + cB)
+            this.separations[0] = b2Dot(cB - cA, this.normal)
+
+        case b2ManifoldType::e_faceA
+            this.normal = b2Mul(xfA.q, manifold.localNormal)
+            planePoint POD b2Vec2 = b2Mul(xfA, manifold.localPoint)
+
+            for(i int = 0; i < manifold.pointCount; ++i){
+                clipPoint POD b2Vec2 = b2Mul(xfB, manifold.points[i].localPoint)
+                cA POD b2Vec2 = clipPoint + (radiusA - b2Dot(clipPoint - planePoint, this.normal)) * this.normal
+                cB POD b2Vec2 = clipPoint - radiusB * this.normal
+                this.points[i] = 0.5f * (cA + cB)
+                this.separations[i] = b2Dot(cB - cA, this.normal)
+            }
+
+        case b2ManifoldType::e_faceB
+            this.normal = b2Mul(xfB.q, manifold.localNormal)
+            planePoint POD b2Vec2 = b2Mul(xfB, manifold.localPoint)
+
+            for(i int = 0; i < manifold.pointCount; ++i){
+                clipPoint POD b2Vec2 = b2Mul(xfA, manifold.points[i].localPoint)
+                cB POD b2Vec2 = clipPoint + (radiusB - b2Dot(clipPoint - planePoint, this.normal)) * this.normal
+                cA POD b2Vec2 = clipPoint - radiusA * this.normal
+                this.points[i] = 0.5f * (cA + cB)
+				this.separations[i] = b2Dot(cA - cB, this.normal)
+            }
+
+            // Ensure normal points from A to B.
+			this.normal = this.normal.Negated()
+        }
+    }
+}
+
+/// This is used for determining the state of contact points.
+enum b2PointState (
+    b2_nullState,       ///< point does not exist
+    b2_addState,        ///< point was added in the update
+    b2_persistState,    ///< point persisted across the update
+    b2_removeState      ///< point was removed in the update
+)
+
+/// Compute the point states given two manifolds. The states pertain to the transition from manifold1
+/// to manifold2. So state1 is either persist or remove while state2 is either add or persist.
+func b2GetPointStates(
+    state1_ref /* b2_maxManifoldPoints */ *2 b2PointState,
+    state2_ref /* b2_maxManifoldPoints */ *2 b2PointState,
+    in manifold1 *b2Manifold,
+    in manifold2 *b2Manifold
+) void {
+    define state1 = *state1_ref
+    define state2 = *state2_ref
+
+    for(i int = 0; i < b2_maxManifoldPoints; ++i){
+		state1[i] = b2PointState::b2_nullState
+		state2[i] = b2PointState::b2_nullState
+	}
+
+	// Detect persists and removes.
+	for(i int = 0; i < manifold1.pointCount; ++i){
+		id POD b2ContactID = manifold1.points[i].id
+
+		state1[i] = b2PointState::b2_removeState
+
+		for(j int = 0; j < manifold2.pointCount; ++j){
+			if manifold2.points[j].id.key == id.key {
+				state1[i] = b2PointState::b2_persistState
+				break
+			}
+		}
+	}
+
+	// Detect persists and adds.
+	for(i int = 0; i < manifold2.pointCount; ++i){
+		id POD b2ContactID = manifold2.points[i].id
+
+		state2[i] = b2PointState::b2_addState
+
+		for(j int = 0; j < manifold1.pointCount; ++j){
+			if manifold1.points[j].id.key == id.key {
+				state2[i] = b2PointState::b2_persistState
+				break
+			}
+		}
+	}
+}
+
+/// Used for computing contact manifolds.
+struct b2ClipVertex (v b2Vec2, id b2ContactID)
+
+/// Ray-cast input data. The ray extends from p1 to p1 + maxFraction * (p2 - p1).
+struct b2RayCastInput (p1, p2 b2Vec2, maxFraction float)
+
+/// Ray-cast output data. The ray hits at p1 + fraction * (p2 - p1), where p1 and p2
+/// come from b2RayCastInput.
+struct b2RayCastOutput (normal b2Vec2, fraction float)
+
+/// An axis aligned bounding box.
+struct b2AABB (
+    lowerBound b2Vec2, ///< the lower vertex
+    upperBound b2Vec2  ///< the upper vertex
+) {
+    /// Verify that the bounds are sorted.
+    func isValid() bool {
+        d b2Vec2 = this.upperBound - this.lowerBound
+        valid bool = d.x >= 0.0f && d.y >= 0.0f
+        valid = valid && this.lowerBound.IsValid() && this.upperBound.IsValid()
+        return valid
+    }
+
+    /// Get the center of the AABB.
+    func GetCenter() b2Vec2 {
+        return 0.5f * (this.lowerBound + this.upperBound)
+    }
+
+    /// Get the extents of the AABB (half-widths).
+    func GetExtents() b2Vec2 {
+        return 0.5f * (this.upperBound - this.lowerBound)
+    }
+
+    /// Get the perimeter length
+    func GetPerimeter() float {
+        wx float = this.upperBound.x - this.lowerBound.x
+        wy float = this.upperBound.y - this.lowerBound.y
+        return 2.0f * (wx + wy)
+    }
+
+    /// Combine an AABB into this one.
+    func Combine(in aabb1, in aabb2 *b2AABB) void {
+        this.lowerBound = b2Min(aabb1.lowerBound, aabb2.lowerBound)
+        this.upperBound = b2Max(aabb1.upperBound, aabb2.upperBound)
+    }
+
+    /// Does this aabb contain the provided AABB.
+    func Contains(in aabb *b2AABB) bool {
+        result bool = true
+        result = result && this.lowerBound.x <= aabb.lowerBound.x
+		result = result && this.lowerBound.y <= aabb.lowerBound.y
+		result = result && aabb.upperBound.x <= this.upperBound.x
+		result = result && aabb.upperBound.y <= this.upperBound.y
+		return result
+    }
+
+    // From Real-time Collision Detection, p179.
+    func RayCast(out output *b2RayCastOutput, in input *b2RayCastInput) bool {
+        tmin float = 0.0f - b2_maxFloat
+        tmax float = b2_maxFloat
+
+        p POD b2Vec2 = input.p1
+        d POD b2Vec2 = input.p2 - input.p1
+        absD POD b2Vec2 = b2Abs(d)
+
+        normal POD b2Vec2 = undef
+
+        for(i int = 0; i < 2; ++i){
+            if absD[i] < b2_epsilon {
+                // Parallel.
+                if p[i] < this.lowerBound[i] || this.upperBound[i] < p[i], return false
+            } else {
+                inv_d float = 1.0f / d[i]
+                t1 float = (this.lowerBound[i] - p[i]) * inv_d
+                t2 float = (this.upperBound[i] - p[i]) * inv_d
+
+                // Sign of the normal vector.
+                s float = -1.0f
+
+                if t1 > t2 {
+                    b2Swap(&t1, &t2)
+                    s = 1.0f
+                }
+
+                // Push the min up
+                if t1 > tmin {
+                    normal.SetZero()
+                    normal[i] = s
+                    tmin = t1
+                }
+
+                // Pull the max down
+                tmax = b2Min(tmax, t2)
+
+                if tmin > tmax, return false
+            }
+        }
+
+        // Does the ray start inside the box?
+        // Does the ray intersect beyond the max fraction?
+        if tmin < 0.0f || input.maxFraction < tmin, return false
+
+        // Intersection.
+        output.fraction = tmin
+        output.normal = normal
+        return true
+    }
+}
+
+import "b2_collide_circle.adept"
+import "b2_collide_polygon.adept"
+import "b2_collide_edge.adept"
+
+/// Clipping for contact manifolds.
+func b2ClipSegmentToLine(
+    out vOut_ref *2 b2ClipVertex,
+    in  vIn_ref  *2 b2ClipVertex,
+    in normal b2Vec2,
+    in offset float,
+    in vertexIndexA int
+) int {
+    define vOut = *vOut_ref
+    define vIn  = *vIn_ref
+
+    // Start with no output points
+	count int = 0
+
+	// Calculate the distance of end points to the line
+	distance0 float = b2Dot(normal, vIn[0].v) - offset
+	distance1 float = b2Dot(normal, vIn[1].v) - offset
+
+	// If the points are behind the plane
+	if distance0 <= 0.0f, vOut[count++] = vIn[0]
+	if distance1 <= 0.0f, vOut[count++] = vIn[1]
+
+	// If the points are on different sides of the plane
+	if distance0 * distance1 < 0.0f {
+		// Find intersection point of edge and plane
+		interp float = distance0 / (distance0 - distance1)
+		vOut[count].v = vIn[0].v + interp * (vIn[1].v - vIn[0].v)
+
+		// VertexA is hitting edgeB.
+		vOut[count].id.cf.indexA = cast ubyte vertexIndexA
+		vOut[count].id.cf.indexB = vIn[0].id.cf.indexB
+		vOut[count].id.cf.typeA = cast ubyte b2ContactFeatureType::e_vertex
+		vOut[count].id.cf.typeB = cast ubyte b2ContactFeatureType::e_face
+		++count
+
+		b2Assert(count == 2)
+	}
+
+	return count
+}
+
+/// Determine if two generic shapes overlap.
+func b2TestOverlap(
+    shapeA *b2Shape,
+    indexA int,
+    shapeB *b2Shape,
+    indexB int,
+    in xfA, in xfB *b2Transform
+) bool {
+    input POD b2DistanceInput = undef
+	input.proxyA.Set(shapeA, indexA)
+	input.proxyB.Set(shapeB, indexB)
+	input.transformA = *xfA
+	input.transformB = *xfB
+	input.useRadii = true
+
+	cache POD b2SimplexCache = undef
+	cache.count = 0
+
+	output POD b2DistanceOutput = undef
+
+	b2Distance(&output, &cache, &input)
+
+	return output.distance < 10.0f * b2_epsilon
+}
+
+func b2TestOverlap(in a, in b *b2AABB) bool {
+    d1 POD b2Vec2 = b.lowerBound - a.upperBound
+	d2 POD b2Vec2 = a.lowerBound - b.upperBound
+
+    if d1.x > 0.0f || d1.y > 0.0f, return false
+    if d2.x > 0.0f || d2.y > 0.0f, return false
+    return true
+}
