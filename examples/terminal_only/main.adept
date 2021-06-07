@@ -1,6 +1,6 @@
 
 import basics
-import "Box2D/box2d.adept"
+import "../../Box2D/box2d.adept"
 
 func main {
     gravity b2Vec2 = b2Vec2(0.0f, -10.0f)
