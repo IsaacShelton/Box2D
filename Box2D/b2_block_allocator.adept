@@ -1,0 +1,229 @@
+
+// Ported by Isaac Shelton from Erin Catto's Box2D @ 95f74a46c077825478f989df6a81003ca538c2c2
+
+// MIT License
+
+// Copyright (c) 2020-2021 Isaac Shelton
+
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
+import "sys/cstring.adept"
+import "b2_settings.adept"
+
+define b2_blockSizeCount = 14
+
+define b2_chunkSize = 16 * 1024      // (file local)
+define b2_maxBlockSize = 640         // (file local)
+define b2_chunkArrayIncrement = 128  // (file local)
+
+/// This is a small object allocator used for allocating small
+/// objects that persist for more than one time step.
+/// See: http://www.codeproject.com/useritems/Small_Block_Allocator.asp
+struct b2BlockAllocator (
+    m_chunks *b2_block_allocator\b2Chunk,
+    m_chunkCount int,
+    m_chunkSpace int,
+    m_freeLists 14 *b2_block_allocator\b2Block // (14 == b2_blockSizeCount)
+) {
+    func __defer__ {
+        for(i int = 0; i < this.m_chunkCount; ++i){
+            b2Free(this.m_chunks[i].blocks)
+        }
+        b2Free(this.m_chunks)
+    }
+
+    /// Helper for b2BlockAllocator.Allocate(int)
+    // Usage: allocator.Allocate() ~> *Type
+    func Allocate() *$T = this.Allocate(sizeof $T) as *$T
+
+    /// Allocate memory. This will use b2Alloc if the size is larger than b2_maxBlockSize.
+    func Allocate(size int) ptr {
+        if size == 0, return null
+
+        b2Assert(0 < size)
+
+        if size > b2_maxBlockSize, return b2Alloc(size)
+
+        b2_sizeMap_values *ubyte = cast *ubyte &b2_block_allocator\b2_sizeMap._opaque_values
+        index int = b2_sizeMap_values[size]
+        b2Assert(0 <= index && index < b2_blockSizeCount)
+
+        if this.m_freeLists[index] {
+            block *b2_block_allocator\b2Block = this.m_freeLists[index]
+            this.m_freeLists[index] = block.next as *b2_block_allocator\b2Block
+            return block
+        }
+
+        if this.m_chunkCount == this.m_chunkSpace {
+            oldChunks *b2_block_allocator\b2Chunk = this.m_chunks
+            this.m_chunkSpace += b2_chunkArrayIncrement
+            this.m_chunks = b2Alloc(this.m_chunkSpace * sizeof b2_block_allocator\b2Chunk) as *b2_block_allocator\b2Chunk
+            memcpy(this.m_chunks, oldChunks, this.m_chunkCount * sizeof b2_block_allocator\b2Chunk)
+            memset(this.m_chunks at this.m_chunkCount, 0, b2_chunkArrayIncrement * sizeof b2_block_allocator\b2Chunk)
+            b2Free(oldChunks)
+        }
+
+        chunk *b2_block_allocator\b2Chunk = this.m_chunks at this.m_chunkCount
+        chunk.blocks = b2Alloc(b2_chunkSize) as *b2_block_allocator\b2Block
+
+        #if b2_DEBUG
+        memset(chunk.blocks, 0xcd, b2_chunkSize)
+        #end
+
+        blockSize int = b2_block_allocator\b2_blockSizes[index]
+        chunk.blockSize = blockSize
+        blockCount int = b2_chunkSize / blockSize
+        b2Assert(blockCount * blockSize <= b2_chunkSize)
+
+        for(i int = 0; i < blockCount - 1; ++i){
+            block *b2_block_allocator\b2Block = chunk.blocks as *ubyte at (blockSize * i) as *b2_block_allocator\b2Block
+            next *b2_block_allocator\b2Block = chunk.blocks as *ubyte at (blockSize * (i + 1)) as *b2_block_allocator\b2Block
+            block.next = next
+        }
+
+        last *b2_block_allocator\b2Block = chunk.blocks as *ubyte at (blockSize * (blockCount - 1)) as *b2_block_allocator\b2Block
+        last.next = null
+
+        this.m_freeLists[index] = chunk.blocks.next
+        ++this.m_chunkCount
+        return chunk.blocks
+    }
+
+    /// Free memory. This will use b2Free if the size is larger than b2_maxBlockSize.
+    func Free(p ptr, size int) void {
+        if size == 0, return
+
+        b2Assert(0 < size)
+
+        if size > b2_maxBlockSize {
+            b2Free(p)
+            return
+        }
+
+        b2_sizeMap_values *ubyte = cast *ubyte &b2_block_allocator\b2_sizeMap._opaque_values
+        index int = b2_sizeMap_values[size]
+        b2Assert(0 <= index && index < b2_blockSizeCount)
+
+        #if b2_DEBUG
+        // Verify the memory address and size is valid.
+        blockSize int = b2_block_allocator\b2_blockSizes[index]
+        found bool = false
+
+        for(i int = 0; i < this.m_chunkCount; ++i){
+            chunk *b2_block_allocator\b2Chunk = this.m_chunks at i
+
+            if chunk.blockSize != blockSize {
+                b2Assert(p as *ubyte at blockSize <= chunk.blocks as *ubyte || chunk.blocks as *ubyte at b2_chunkSize <= p as *ubyte)
+            } else {
+                if chunk.blocks as *ubyte <= p as *ubyte && p as *ubyte at blockSize <= chunk.blocks as *ubyte at b2_chunkSize {
+                    found = true
+                }
+            }
+        }
+
+        b2Assert(found)
+        memset(p, 0xfd, blockSize)
+        #end
+
+        block *b2_block_allocator\b2Block = p as *b2_block_allocator\b2Block
+        block.next = this.m_freeLists[index]
+        this.m_freeLists[index] = block
+    }
+
+    func Clear() void {
+        for(i int = 0; i < this.m_chunkCount; ++i){
+            b2Free(this.m_chunks[i].blocks)
+        }
+
+        this.m_chunkCount = 0
+        memset(this.m_chunks, 0, this.m_chunkSpace * sizeof b2_block_allocator\b2Chunk)
+        memset(&this.m_freeLists, 0, sizeof(this.m_freeLists))
+    }
+}
+
+func b2BlockAllocator() b2BlockAllocator {
+    b POD b2BlockAllocator = undef
+
+    b2Assert(b2_blockSizeCount < 255)
+
+    b.m_chunkSpace = b2_chunkArrayIncrement
+    b.m_chunkCount = 0
+    b.m_chunks = b2Alloc(b.m_chunkSpace * sizeof b2_block_allocator\b2Chunk) as *b2_block_allocator\b2Chunk
+
+    memset(b.m_chunks, 0, b.m_chunkSpace * sizeof b2_block_allocator\b2Chunk)
+	memset(&b.m_freeLists, 0, sizeof(b.m_freeLists))
+    return b
+}
+
+namespace b2_block_allocator {
+    // These are the supported object sizes. Actual allocations are rounded up the next size.
+    b2_blockSizes 14 int = undef // (initialized by b2SizeMap())
+    
+    func b2_blockSizes_make() 14 int {
+        sizes 14 int = undef
+        sizes[00] = 16		// 0
+        sizes[01] = 32		// 1
+        sizes[02] = 64		// 2
+        sizes[03] = 96		// 3
+        sizes[04] = 128 	// 4
+        sizes[05] = 160 	// 5
+        sizes[06] = 192 	// 6
+        sizes[07] = 224 	// 7
+        sizes[08] = 256 	// 8
+        sizes[09] = 320 	// 9
+        sizes[10] = 384 	// 10
+        sizes[11] = 448 	// 11
+        sizes[12] = 512 	// 12
+        sizes[13] = 640 	// 13
+        return sizes
+    }
+
+    struct b2SizeMap (
+        // values 641 ubyte  which is  (b2_maxBlockSize + 1)
+        _opaque_values 81 ulong
+    )
+
+    func b2SizeMap() b2_block_allocator\b2SizeMap {
+        b2_block_allocator\b2_blockSizes = b2_block_allocator\b2_blockSizes_make()
+
+        m POD b2_block_allocator\b2SizeMap = undef
+        values *ubyte = cast *ubyte &m._opaque_values
+        
+        j int = 0
+        values[0] = 0
+
+        for(i int = 1; i <= b2_maxBlockSize; ++i){
+            b2Assert(j < b2_blockSizeCount)
+            
+			if i <= b2_block_allocator\b2_blockSizes[j] {
+				values[i] = cast ubyte j
+			} else {
+				++j
+				values[i] = cast ubyte j
+			}
+        }
+
+        return m
+    }
+
+    b2_sizeMap b2_block_allocator\b2SizeMap = b2_block_allocator\b2SizeMap()
+
+    struct b2Block (next ptr) // (next is *b2Block)
+    struct b2Chunk (blockSize int, blocks *b2_block_allocator\b2Block)
+}

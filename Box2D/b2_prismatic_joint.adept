@@ -1,0 +1,743 @@
+
+// Ported by Isaac Shelton from Erin Catto's Box2D @ 95f74a46c077825478f989df6a81003ca538c2c2
+
+// MIT License
+
+// Copyright (c) 2020-2021 Isaac Shelton
+
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
+import "b2_joint.adept"
+import "b2_body.adept"
+import "b2_draw.adept"
+import "b2_time_step.adept"
+
+// Linear constraint (point-to-line)
+// d = p2 - p1 = x2 + r2 - x1 - r1
+// C = dot(perp, d)
+// Cdot = dot(d, cross(w1, perp)) + dot(perp, v2 + cross(w2, r2) - v1 - cross(w1, r1))
+//      = -dot(perp, v1) - dot(cross(d + r1, perp), w1) + dot(perp, v2) + dot(cross(r2, perp), v2)
+// J = [-perp, -cross(d + r1, perp), perp, cross(r2,perp)]
+//
+// Angular constraint
+// C = a2 - a1 + a_initial
+// Cdot = w2 - w1
+// J = [0 0 -1 0 0 1]
+//
+// K = J * invM * JT
+//
+// J = [-a -s1 a s2]
+//     [0  -1  0  1]
+// a = perp
+// s1 = cross(d + r1, a) = cross(p2 - x1, a)
+// s2 = cross(r2, a) = cross(p2 - x2, a)
+
+// Motor/Limit linear constraint
+// C = dot(ax1, d)
+// Cdot = -dot(ax1, v1) - dot(cross(d + r1, ax1), w1) + dot(ax1, v2) + dot(cross(r2, ax1), v2)
+// J = [-ax1 -cross(d+r1,ax1) ax1 cross(r2,ax1)]
+
+// Predictive limit is applied even when the limit is not active.
+// Prevents a constraint speed that can lead to a constraint error in one time step.
+// Want C2 = C1 + h * Cdot >= 0
+// Or:
+// Cdot + C1/h >= 0
+// I do not apply a negative constraint error because that is handled in position correction.
+// So:
+// Cdot + max(C1, 0)/h >= 0
+
+// Block Solver
+// We develop a block solver that includes the angular and linear constraints. This makes the limit stiffer.
+//
+// The Jacobian has 2 rows:
+// J = [-uT -s1 uT s2] // linear
+//     [0   -1   0  1] // angular
+//
+// u = perp
+// s1 = cross(d + r1, u), s2 = cross(r2, u)
+// a1 = cross(d + r1, v), a2 = cross(r2, v)
+
+struct b2PrismaticJointDef (
+    struct b2JointDef,
+
+    /// The local anchor point relative to bodyA's origin.
+	localAnchorA b2Vec2,
+
+	/// The local anchor point relative to bodyB's origin.
+	localAnchorB b2Vec2,
+
+	/// The local translation unit axis in bodyA.
+	localAxisA b2Vec2,
+
+	/// The constrained angle between the bodies: bodyB_angle - bodyA_angle.
+	referenceAngle float,
+
+	/// Enable/disable the joint limit.
+	enableLimit bool,
+
+	/// The lower translation limit, usually in meters.
+	lowerTranslation float,
+
+	/// The upper translation limit, usually in meters.
+	upperTranslation float,
+
+	/// Enable/disable the joint motor.
+	enableMotor bool,
+
+	/// The maximum motor torque, usually in N-m.
+	maxMotorForce float,
+
+	/// The desired motor speed in radians per second.
+	motorSpeed float
+) {
+    /// Initialize the bodies, anchors, axis, and reference angle using the world
+	/// anchor and unit world axis.
+	func Initialize(in bA, bB *b2Body, in anchor, axis *b2Vec2) void {
+        this.bodyA = bA
+        this.bodyB = bB
+        this.localAnchorA = bA.GetLocalPoint(anchor)
+        this.localAnchorB = bB.GetLocalPoint(anchor)
+        this.localAxisA = bA.GetLocalVector(axis)
+        this.referenceAngle = bB.GetAngle() - bA.GetAngle()
+    }
+}
+
+func b2PrismaticJointDef() b2PrismaticJointDef {
+    pjd POD b2PrismaticJointDef = undef
+    *cast *b2JointDef &pjd = b2JointDef()
+    pjd.type = b2JointType::e_prismaticJoint
+    pjd.localAnchorA.SetZero()
+    pjd.localAnchorB.SetZero()
+    pjd.localAxisA.Set(1.0f, 0.0f)
+    pjd.referenceAngle = 0.0f
+    pjd.enableLimit = false
+    pjd.lowerTranslation = 0.0f
+    pjd.upperTranslation = 0.0f
+    pjd.enableMotor = false
+    pjd.maxMotorForce = 0.0f
+    pjd.motorSpeed = 0.0f
+    return pjd
+}
+
+/// A prismatic joint. This joint provides one degree of freedom: translation
+/// along an axis fixed in bodyA. Relative rotation is prevented. You can
+/// use a joint limit to restrict the range of motion and a joint motor to
+/// drive the motion or to model joint friction.
+struct b2PrismaticJoint (
+    struct b2Joint,
+
+    m_localAnchorA b2Vec2,
+	m_localAnchorB b2Vec2,
+	m_localXAxisA b2Vec2,
+	m_localYAxisA b2Vec2,
+	m_referenceAngle float,
+	m_impulse b2Vec2,
+	m_motorImpulse float,
+	m_lowerImpulse float,
+	m_upperImpulse float,
+	m_lowerTranslation float,
+	m_upperTranslation float,
+	m_maxMotorForce float,
+	m_motorSpeed float,
+	m_enableLimit bool,
+	m_enableMotor bool,
+
+	// Solver temp
+	m_indexA int,
+	m_indexB int,
+	m_localCenterA b2Vec2,
+	m_localCenterB b2Vec2,
+	m_invMassA float,
+	m_invMassB float,
+	m_invIA float,
+	m_invIB float,
+	m_axis, m_perp b2Vec2,
+	m_s1, m_s2 float,
+	m_a1, m_a2 float,
+	m_K b2Mat22,
+	m_translation float,
+	m_axialMass float
+) {
+    // (override)
+    func GetAnchorA() b2Vec2 {
+        return this.m_bodyA.GetWorldPoint(&this.m_localAnchorA)
+    }
+
+    // (override)
+	func GetAnchorB() b2Vec2 {
+        return this.m_bodyB.GetWorldPoint(&this.m_localAnchorB)
+    }
+
+    // (override)
+	func GetReactionForce(inv_dt float) b2Vec2 {
+        return inv_dt * (this.m_impulse.x * this.m_perp + (this.m_motorImpulse + this.m_lowerImpulse - this.m_upperImpulse) * this.m_axis)
+    }
+
+    // (override)
+	func GetReactionTorque(inv_dt float) float {
+        return inv_dt * this.m_impulse.y
+    }
+
+	/// The local anchor point relative to bodyA's origin.
+	func GetLocalAnchorA() *b2Vec2 { return &this.m_localAnchorA; }
+
+	/// The local anchor point relative to bodyB's origin.
+	func GetLocalAnchorB() *b2Vec2 { return &this.m_localAnchorB; }
+
+	/// The local joint axis relative to bodyA.
+	func GetLocalAxisA() *b2Vec2 { return &this.m_localXAxisA; }
+
+	/// Get the reference angle.
+	func GetReferenceAngle() float { return this.m_referenceAngle; }
+
+	/// Get the current joint translation, usually in meters.
+	func GetJointTranslation() float {
+        pA POD b2Vec2 = this.m_bodyA.GetWorldPoint(&this.m_localAnchorA)
+        pB POD b2Vec2 = this.m_bodyB.GetWorldPoint(&this.m_localAnchorB)
+        d POD b2Vec2 = pB - pA
+        axis POD b2Vec2 = this.m_bodyA.GetWorldVector(&this.m_localXAxisA)
+
+        translation float = b2Dot(d, axis)
+        return translation
+    }
+
+	/// Get the current joint translation speed, usually in meters per second.
+	func GetJointSpeed() float {
+        bA *b2Body = this.m_bodyA
+        bB *b2Body = this.m_bodyB
+
+        rA POD b2Vec2 = b2Mul(bA.m_xf.q, this.m_localAnchorA - bA.m_sweep.localCenter)
+        rB POD b2Vec2 = b2Mul(bB.m_xf.q, this.m_localAnchorB - bB.m_sweep.localCenter)
+        p1 POD b2Vec2 = bA.m_sweep.c + rA
+        p2 POD b2Vec2 = bB.m_sweep.c + rB
+        d POD b2Vec2 = p2 - p1
+        axis POD b2Vec2 = b2Mul(bA.m_xf.q, this.m_localXAxisA)
+
+        vA POD b2Vec2 = bA.m_linearVelocity
+        vB POD b2Vec2 = bB.m_linearVelocity
+        wA float = bA.m_angularVelocity
+        wB float = bB.m_angularVelocity
+
+        speed float = b2Dot(d, b2Cross(wA, axis)) + b2Dot(axis, vB + b2Cross(wB, rB) - vA - b2Cross(wA, rA))
+        return speed
+    }
+
+	/// Is the joint limit enabled?
+	func IsLimitEnabled() bool {
+        return this.m_enableLimit
+    }
+
+	/// Enable/disable the joint limit.
+	func EnableLimit(flag bool) void {
+        if flag != this.m_enableLimit {
+            this.m_bodyA.SetAwake(true)
+            this.m_bodyB.SetAwake(true)
+            this.m_enableLimit = flag
+            this.m_lowerImpulse = 0.0f
+            this.m_upperImpulse = 0.0f
+        }
+    }
+
+	/// Get the lower joint limit, usually in meters.
+	func GetLowerLimit() float {
+        return this.m_lowerTranslation
+    }
+
+	/// Get the upper joint limit, usually in meters.
+	func GetUpperLimit() float {
+        return this.m_upperTranslation
+    }
+
+	/// Set the joint limits, usually in meters.
+	func SetLimits(lower, upper float) void {
+        b2Assert(lower <= upper)
+        if lower != this.m_lowerTranslation || upper != this.m_upperTranslation {
+            this.m_bodyA.SetAwake(true)
+            this.m_bodyB.SetAwake(true)
+            this.m_lowerTranslation = lower
+            this.m_upperTranslation = upper
+            this.m_lowerImpulse = 0.0f
+            this.m_upperImpulse = 0.0f
+        }
+    }
+
+	/// Is the joint motor enabled?
+	func IsMotorEnabled() bool {
+        return this.m_enableMotor
+    }
+
+	/// Enable/disable the joint motor.
+	func EnableMotor(flag bool) void {
+        if flag != this.m_enableMotor {
+            this.m_bodyA.SetAwake(true)
+            this.m_bodyB.SetAwake(true)
+            this.m_enableMotor = flag
+        }
+    }
+
+	/// Set the motor speed, usually in meters per second.
+	func SetMotorSpeed(speed float) void {
+        if speed != this.m_motorSpeed {
+            this.m_bodyA.SetAwake(true)
+            this.m_bodyB.SetAwake(true)
+            this.m_motorSpeed = speed
+        }
+    }
+
+	/// Get the motor speed, usually in meters per second.
+	func GetMotorSpeed() float { return this.m_motorSpeed; }
+
+	/// Set the maximum motor force, usually in N.
+	func SetMaxMotorForce(force float) void {
+        if force != this.m_maxMotorForce {
+            this.m_bodyA.SetAwake(true)
+            this.m_bodyB.SetAwake(true)
+            this.m_maxMotorForce = force
+        }
+    }
+
+	func GetMaxMotorForce() float { return this.m_maxMotorForce; }
+
+	/// Get the current motor force given the inverse time step, usually in N.
+	func GetMotorForce(inv_dt float) float {
+        return inv_dt * this.m_motorImpulse
+    }
+
+	/// Dump to b2Log
+    // (override)
+	func Dump() void {
+        // FLT_DECIMAL_DIG == 9
+
+        indexA int = this.m_bodyA.m_islandIndex
+        indexB int = this.m_bodyB.m_islandIndex
+
+        b2Dump('  b2PrismaticJointDef jd;\n')
+        b2Dump('  jd.bodyA = bodies[%d];\n', indexA)
+        b2Dump('  jd.bodyB = bodies[%d];\n', indexB)
+        b2Dump('  jd.collideConnected = bool(%d);\n', this.m_collideConnected)
+        b2Dump('  jd.localAnchorA.Set(%hf, %hf);\n', this.m_localAnchorA.x, this.m_localAnchorA.y)
+        b2Dump('  jd.localAnchorB.Set(%hf, %hf);\n', this.m_localAnchorB.x, this.m_localAnchorB.y)
+        b2Dump('  jd.localAxisA.Set(%hf, %hf);\n', this.m_localXAxisA.x, this.m_localXAxisA.y)
+        b2Dump('  jd.referenceAngle = %hf;\n', this.m_referenceAngle)
+        b2Dump('  jd.enableLimit = bool(%d);\n', this.m_enableLimit)
+        b2Dump('  jd.lowerTranslation = %hf;\n', this.m_lowerTranslation)
+        b2Dump('  jd.upperTranslation = %hf;\n', this.m_upperTranslation)
+        b2Dump('  jd.enableMotor = bool(%d);\n', this.m_enableMotor)
+        b2Dump('  jd.motorSpeed = %hf;\n', this.m_motorSpeed)
+        b2Dump('  jd.maxMotorForce = %hf;\n', this.m_maxMotorForce)
+        b2Dump('  joints[%d] = m_world.CreateJoint(&jd);\n', this.m_index)
+    }
+
+	///
+    // (override)
+	func Draw(draw *b2Draw) void {
+        xfA *b2Transform = this.m_bodyA.GetTransform()
+        xfB *b2Transform = this.m_bodyB.GetTransform()
+        pA POD b2Vec2 = b2Mul(xfA, this.m_localAnchorA)
+        pB POD b2Vec2 = b2Mul(xfB, this.m_localAnchorB)
+
+        axis POD b2Vec2 = b2Mul(xfA.q, this.m_localXAxisA)
+
+        c1 POD b2Color = POD b2Color(0.7f, 0.7f, 0.7f)
+        c2 POD b2Color = POD b2Color(0.3f, 0.9f, 0.3f)
+        c3 POD b2Color = POD b2Color(0.9f, 0.3f, 0.3f)
+        c4 POD b2Color = POD b2Color(0.3f, 0.3f, 0.9f)
+        c5 POD b2Color = POD b2Color(0.4f, 0.4f, 0.4f)
+
+        draw.DrawSegment(&pA, &pB, &c5)
+
+        if this.m_enableLimit {
+            lower b2Vec2 = pA + this.m_lowerTranslation * axis
+            upper b2Vec2 = pA + this.m_upperTranslation * axis
+            perp b2Vec2 = b2Mul(xfA.q, this.m_localYAxisA)
+            draw.DrawSegment(lower, upper, &c1)
+            draw.DrawSegment(lower - 0.5f * perp, lower + 0.5f * perp, &c2)
+            draw.DrawSegment(upper - 0.5f * perp, upper + 0.5f * perp, &c3)
+        } else {
+            draw.DrawSegment(pA - 1.0f * axis, pA + 1.0f * axis, &c1)
+        }
+
+        draw.DrawPoint(&pA, 5.0f, &c1)
+        draw.DrawPoint(&pB, 5.0f, &c4)
+    }
+
+    // --------------------------------------------------------
+
+    // (override)
+    func InitVelocityConstraints(in data *b2SolverData) void {
+        this.m_indexA = this.m_bodyA.m_islandIndex
+        this.m_indexB = this.m_bodyB.m_islandIndex
+        this.m_localCenterA = this.m_bodyA.m_sweep.localCenter
+        this.m_localCenterB = this.m_bodyB.m_sweep.localCenter
+        this.m_invMassA = this.m_bodyA.m_invMass
+        this.m_invMassB = this.m_bodyB.m_invMass
+        this.m_invIA = this.m_bodyA.m_invI
+        this.m_invIB = this.m_bodyB.m_invI
+
+        cA POD b2Vec2 = data.positions[this.m_indexA].c
+        aA float = data.positions[this.m_indexA].a
+        vA POD b2Vec2 = data.velocities[this.m_indexA].v
+        wA float = data.velocities[this.m_indexA].w
+
+        cB POD b2Vec2 = data.positions[this.m_indexB].c
+        aB float = data.positions[this.m_indexB].a
+        vB POD b2Vec2 = data.velocities[this.m_indexB].v
+        wB float = data.velocities[this.m_indexB].w
+
+        qA POD b2Rot = POD b2Rot(aA)
+        qB POD b2Rot = POD b2Rot(aB)
+
+        // Compute the effective masses.
+        rA POD b2Vec2 = b2Mul(qA, this.m_localAnchorA - this.m_localCenterA)
+        rB POD b2Vec2 = b2Mul(qB, this.m_localAnchorB - this.m_localCenterB)
+        d POD b2Vec2 = (cB - cA) + rB - rA
+
+        mA float = this.m_invMassA
+        mB float = this.m_invMassB
+        iA float = this.m_invIA
+        iB float = this.m_invIB
+
+        // Compute motor Jacobian and effective mass.
+        if true {
+            this.m_axis = b2Mul(qA, this.m_localXAxisA)
+            this.m_a1 = b2Cross(d + rA, this.m_axis)
+            this.m_a2 = b2Cross(rB, this.m_axis)
+
+            this.m_axialMass = mA + mB + iA * this.m_a1 * this.m_a1 + iB * this.m_a2 * this.m_a2
+            if this.m_axialMass > 0.0f {
+                this.m_axialMass = 1.0f / this.m_axialMass
+            }
+        }
+
+        // Prismatic constraint.
+        if true {
+            this.m_perp = b2Mul(qA, this.m_localYAxisA)
+
+            this.m_s1 = b2Cross(d + rA, this.m_perp)
+            this.m_s2 = b2Cross(rB, this.m_perp)
+
+            k11 float = mA + mB + iA * this.m_s1 * this.m_s1 + iB * this.m_s2 * this.m_s2
+            k12 float = iA * this.m_s1 + iB * this.m_s2
+            k22 float = iA + iB
+            if k22 == 0.0f {
+                // For bodies with fixed rotation.
+                k22 = 1.0f
+            }
+
+            this.m_K.ex.Set(k11, k12)
+            this.m_K.ey.Set(k12, k22)
+        }
+
+        if this.m_enableLimit {
+            this.m_translation = b2Dot(this.m_axis, d)
+        } else {
+            this.m_lowerImpulse = 0.0f
+            this.m_upperImpulse = 0.0f
+        }
+
+        if this.m_enableMotor == false {
+            this.m_motorImpulse = 0.0f
+        }
+
+        if data.step.warmStarting {
+            // Account for variable time step.
+            this.m_impulse.MultiplyAssign(data.step.dtRatio)
+            this.m_motorImpulse *= data.step.dtRatio
+            this.m_lowerImpulse *= data.step.dtRatio
+            this.m_upperImpulse *= data.step.dtRatio
+
+            axialImpulse float = this.m_motorImpulse + this.m_lowerImpulse - this.m_upperImpulse
+            P POD b2Vec2 = this.m_impulse.x * this.m_perp + axialImpulse * this.m_axis
+            LA float = this.m_impulse.x * this.m_s1 + this.m_impulse.y + axialImpulse * this.m_a1
+            LB float = this.m_impulse.x * this.m_s2 + this.m_impulse.y + axialImpulse * this.m_a2
+
+            vA.SubtractAssign(mA * P)
+            wA -= iA * LA
+
+            vB.AddAssign(mB * P)
+            wB += iB * LB
+        } else {
+            this.m_impulse.SetZero()
+            this.m_motorImpulse = 0.0f
+            this.m_lowerImpulse = 0.0f
+            this.m_upperImpulse = 0.0f
+        }
+
+        data.velocities[this.m_indexA].v = vA
+        data.velocities[this.m_indexA].w = wA
+        data.velocities[this.m_indexB].v = vB
+        data.velocities[this.m_indexB].w = wB
+    }
+
+    // (override)
+	func SolveVelocityConstraints(in data *b2SolverData) void {
+        vA POD b2Vec2 = data.velocities[this.m_indexA].v
+        wA float = data.velocities[this.m_indexA].w
+        vB POD b2Vec2 = data.velocities[this.m_indexB].v
+        wB float = data.velocities[this.m_indexB].w
+
+        mA float = this.m_invMassA
+        mB float = this.m_invMassB
+        iA float = this.m_invIA
+        iB float = this.m_invIB
+
+        // Solve linear motor constraint
+        if this.m_enableMotor {
+            Cdot float = b2Dot(this.m_axis, vB - vA) + this.m_a2 * wB - this.m_a1 * wA
+            impulse float = this.m_axialMass * (this.m_motorSpeed - Cdot)
+            oldImpulse float = this.m_motorImpulse
+            maxImpulse float = data.step.dt * this.m_maxMotorForce
+            this.m_motorImpulse = b2Clamp(this.m_motorImpulse + impulse, (0.0f - maxImpulse), maxImpulse)
+            impulse = this.m_motorImpulse - oldImpulse
+
+            P POD b2Vec2 = impulse * this.m_axis
+            LA float = impulse * this.m_a1
+            LB float = impulse * this.m_a2
+
+            vA.SubtractAssign(mA * P)
+            wA -= iA * LA
+            vB.AddAssign(mB * P)
+            wB += iB * LB
+        }
+
+        if this.m_enableLimit {
+            // Lower limit
+            if true {
+                C float = this.m_translation - this.m_lowerTranslation
+                Cdot float = b2Dot(this.m_axis, vB - vA) + this.m_a2 * wB - this.m_a1 * wA
+                impulse float = (0.0f - this.m_axialMass) * (Cdot + b2Max(C, 0.0f) * data.step.inv_dt)
+                oldImpulse float = this.m_lowerImpulse
+                this.m_lowerImpulse = b2Max(this.m_lowerImpulse + impulse, 0.0f)
+                impulse = this.m_lowerImpulse - oldImpulse
+
+                P POD b2Vec2 = impulse * this.m_axis
+                LA POD float = impulse * this.m_a1
+                LB POD float = impulse * this.m_a2
+
+                vA.SubtractAssign(mA * P)
+                wA -= iA * LA
+                vB.AddAssign(mB * P)
+                wB += iB * LB
+            }
+
+            // Upper limit
+            // Note: signs are flipped to keep C positive when the constraint is satisfied.
+            // This also keeps the impulse positive when the limit is active.
+            if true {
+                C float = this.m_upperTranslation - this.m_translation
+                Cdot float = b2Dot(this.m_axis, vA - vB) + this.m_a1 * wA - this.m_a2 * wB
+                impulse float = (0.0f - this.m_axialMass) * (Cdot + b2Max(C, 0.0f) * data.step.inv_dt)
+                oldImpulse float = this.m_upperImpulse
+                this.m_upperImpulse = b2Max(this.m_upperImpulse + impulse, 0.0f)
+                impulse = this.m_upperImpulse - oldImpulse
+
+                P POD b2Vec2 = impulse * this.m_axis
+                LA float = impulse * this.m_a1
+                LB float = impulse * this.m_a2
+
+                vA.AddAssign(mA * P)
+                wA += iA * LA
+                vB.SubtractAssign(mB * P)
+                wB -= iB * LB
+            }
+        }
+
+        // Solve the prismatic constraint in block form.
+        if true {
+            Cdot POD b2Vec2 = undef
+            Cdot.x = b2Dot(this.m_perp, vB - vA) + this.m_s2 * wB - this.m_s1 * wA
+            Cdot.y = wB - wA
+
+            df POD b2Vec2 = this.m_K.Solve(Cdot.Negated())
+            this.m_impulse = this.m_impulse + df
+
+            P POD b2Vec2 = df.x * this.m_perp
+            LA float = df.x * this.m_s1 + df.y
+            LB float = df.x * this.m_s2 + df.y
+
+            vA.SubtractAssign(mA * P)
+            wA -= iA * LA
+
+            vB.AddAssign(mB * P)
+            wB += iB * LB
+        }
+
+        data.velocities[this.m_indexA].v = vA
+        data.velocities[this.m_indexA].w = wA
+        data.velocities[this.m_indexB].v = vB
+        data.velocities[this.m_indexB].w = wB
+    }
+
+    // A velocity based solver computes reaction forces(impulses) using the velocity constraint solver.Under this context,
+    // the position solver is not there to resolve forces.It is only there to cope with integration error.
+    //
+    // Therefore, the pseudo impulses in the position solver do not have any physical meaning.Thus it is okay if they suck.
+    //
+    // We could take the active state from the velocity solver.However, the joint might push past the limit when the velocity
+    // solver indicates the limit is inactive.
+    // (override)
+	func SolvePositionConstraints(in data *b2SolverData) bool {
+        cA POD b2Vec2 = data.positions[this.m_indexA].c
+        aA float = data.positions[this.m_indexA].a
+        cB POD b2Vec2 = data.positions[this.m_indexB].c
+        aB float = data.positions[this.m_indexB].a
+
+        qA POD b2Rot = POD b2Rot(aA)
+        qB POD b2Rot = POD b2Rot(aB)
+
+        mA float = this.m_invMassA
+        mB float = this.m_invMassB
+        iA float = this.m_invIA
+        iB float = this.m_invIB
+
+        // Compute fresh Jacobians
+        rA POD b2Vec2 = b2Mul(qA, this.m_localAnchorA - this.m_localCenterA)
+        rB POD b2Vec2 = b2Mul(qB, this.m_localAnchorB - this.m_localCenterB)
+        d POD b2Vec2 = cB + rB - cA - rA
+
+        axis POD b2Vec2 = b2Mul(qA, this.m_localXAxisA)
+        a1 float = b2Cross(d + rA, axis)
+        a2 float = b2Cross(rB, axis)
+        perp POD b2Vec2 = b2Mul(qA, this.m_localYAxisA)
+
+        s1 float = b2Cross(d + rA, perp)
+        s2 float = b2Cross(rB, perp)
+
+        impulse POD b2Vec3 = undef
+        C1 POD b2Vec2 = undef
+        C1.x = b2Dot(perp, d)
+        C1.y = aB - aA - this.m_referenceAngle
+
+        linearError float = b2Abs(C1.x)
+        angularError float = b2Abs(C1.y)
+
+        active bool = false
+        C2 float = 0.0f
+
+        if this.m_enableLimit {
+            translation float = b2Dot(axis, d)
+
+            if b2Abs(this.m_upperTranslation - this.m_lowerTranslation) < 2.0f * b2_linearSlop {
+                C2 = translation
+                linearError = b2Max(linearError, b2Abs(translation))
+                active = true
+            } else if translation <= this.m_lowerTranslation {
+                C2 = b2Min(translation - this.m_lowerTranslation, 0.0f)
+                linearError = b2Max(linearError, this.m_lowerTranslation - translation)
+                active = true
+            } else if translation >= this.m_upperTranslation {
+                C2 = b2Max(translation - this.m_upperTranslation, 0.0f)
+                linearError = b2Max(linearError, translation - this.m_upperTranslation)
+                active = true
+            }
+        }
+
+        if active {
+            k11 float = mA + mB + iA * s1 * s1 + iB * s2 * s2
+            k12 float = iA * s1 + iB * s2
+            k13 float = iA * s1 * a1 + iB * s2 * a2
+            k22 float = iA + iB
+
+            if k22 == 0.0f {
+                // For fixed rotation
+                k22 = 1.0f
+            }
+
+            k23 float = iA * a1 + iB * a2
+            k33 float = mA + mB + iA * a1 * a1 + iB * a2 * a2
+
+            K POD b2Mat33 = undef
+            K.ex.Set(k11, k12, k13)
+            K.ey.Set(k12, k22, k23)
+            K.ez.Set(k13, k23, k33)
+
+            C POD b2Vec3 = undef
+            C.x = C1.x
+            C.y = C1.y
+            C.z = C2
+
+            impulse = K.Solve33(C.Negated())
+        } else {
+            k11 float = mA + mB + iA * s1 * s1 + iB * s2 * s2
+            k12 float = iA * s1 + iB * s2
+            k22 float = iA + iB
+            if k22 == 0.0f {
+                k22 = 1.0f
+            }
+
+            K POD b2Mat22 = undef
+            K.ex.Set(k11, k12)
+            K.ey.Set(k12, k22)
+
+            impulse1 POD b2Vec2 = K.Solve(C1.Negated())
+            impulse.x = impulse1.x
+            impulse.y = impulse1.y
+            impulse.z = 0.0f
+        }
+
+        P POD b2Vec2 = impulse.x * perp + impulse.z * axis
+        LA float = impulse.x * s1 + impulse.y + impulse.z * a1
+        LB float = impulse.x * s2 + impulse.y + impulse.z * a2
+
+        cA.SubtractAssign(mA * P)
+        aA -= iA * LA
+        cB.AddAssign(mB * P)
+        aB += iB * LB
+
+        data.positions[this.m_indexA].c = cA
+        data.positions[this.m_indexA].a = aA
+        data.positions[this.m_indexB].c = cB
+        data.positions[this.m_indexB].a = aB
+
+        return linearError <= b2_linearSlop && angularError <= b2_angularSlop
+    }
+}
+
+func b2Joint\CreateRaw\b2PrismaticJoint(out uninitialized *b2PrismaticJoint, in definition *b2PrismaticJointDef) *b2PrismaticJoint {
+    b2Joint(uninitialized, definition as *b2JointDef)
+
+    uninitialized.m_localAnchorA = definition.localAnchorA
+	uninitialized.m_localAnchorB = definition.localAnchorB
+	uninitialized.m_localXAxisA = definition.localAxisA
+	uninitialized.m_localXAxisA.Normalize()
+	uninitialized.m_localYAxisA = b2Cross(1.0f, uninitialized.m_localXAxisA)
+	uninitialized.m_referenceAngle = definition.referenceAngle
+
+	uninitialized.m_impulse.SetZero()
+	uninitialized.m_axialMass = 0.0f
+	uninitialized.m_motorImpulse = 0.0f
+	uninitialized.m_lowerImpulse = 0.0f
+	uninitialized.m_upperImpulse = 0.0f
+
+	uninitialized.m_lowerTranslation = definition.lowerTranslation
+	uninitialized.m_upperTranslation = definition.upperTranslation
+
+	b2Assert(uninitialized.m_lowerTranslation <= uninitialized.m_upperTranslation)
+
+	uninitialized.m_maxMotorForce = definition.maxMotorForce
+	uninitialized.m_motorSpeed = definition.motorSpeed
+	uninitialized.m_enableLimit = definition.enableLimit
+	uninitialized.m_enableMotor = definition.enableMotor
+
+	uninitialized.m_translation = 0.0f
+	uninitialized.m_axis.SetZero()
+	uninitialized.m_perp.SetZero()
+
+    return uninitialized
+}

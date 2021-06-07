@@ -1,0 +1,49 @@
+
+// Ported by Isaac Shelton from Erin Catto's Box2D @ 95f74a46c077825478f989df6a81003ca538c2c2
+
+// MIT License
+
+// Copyright (c) 2020-2021 Isaac Shelton
+
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
+import "b2_contact.adept"
+
+struct b2EdgeAndCircleContact (struct b2Contact) {
+    // (override)
+	func Evaluate(manifold *b2Manifold, in xfA, xfB *b2Transform) void {
+        b2CollideEdgeAndCircle(manifold, this.m_fixtureA.GetShape() as *b2EdgeShape, xfA, this.m_fixtureB.GetShape() as *b2CircleShape, xfB)
+    }
+}
+
+func b2EdgeAndCircleContact\Create(fixtureA *b2Fixture, _indexA int, fixtureB *b2Fixture, _indexB int, allocator *b2BlockAllocator) *b2Contact {
+    return b2EdgeAndCircleContact(allocator.Allocate(sizeof b2EdgeAndCircleContact) as *b2EdgeAndCircleContact, fixtureA, fixtureB) as *b2Contact
+}
+
+func b2EdgeAndCircleContact\Destroy(contact *b2Contact, allocator *b2BlockAllocator) void {
+    (contact as *b2EdgeAndCircleContact).__defer__()
+	allocator.Free(contact, sizeof b2EdgeAndCircleContact)
+}
+
+func b2EdgeAndCircleContact(uninitialized *b2EdgeAndCircleContact, fixtureA *b2Fixture, fixtureB *b2Fixture) *b2EdgeAndCircleContact {
+    b2Contact(uninitialized, false, fixtureA, 0, fixtureB, 0)
+    b2Assert(uninitialized.m_fixtureA.GetType() == b2ShapeType::e_edge)
+	b2Assert(uninitialized.m_fixtureB.GetType() == b2ShapeType::e_circle)
+    return uninitialized
+}
