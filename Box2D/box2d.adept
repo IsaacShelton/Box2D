@@ -23,6 +23,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+pragma compiler_supports '2.5'
+
 import 'b2_settings.adept'
 import 'b2_draw.adept'
 import 'b2_timer.adept'
