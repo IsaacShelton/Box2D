@@ -68,7 +68,7 @@ struct b2ChainShape (
             v2 POD b2Vec2 = vertices[i]
 
             // If the code crashes here, it means your vertices are too close together.
-            b2Assert(b2DistanceSquared(v1, v2, #get __file__, #get __line__, 'b2Assert(b2DistanceSquared(v1, v2)') > b2_linearSlop * b2_linearSlop)
+            b2Assert(b2DistanceSquared(v1, v2) > b2_linearSlop * b2_linearSlop, #get __file__, #get __line__, 'b2Assert(b2DistanceSquared(v1, v2) > b2_linearSlop * b2_linearSlop)')
         }
 
         this.m_count = count + 1
@@ -90,7 +90,7 @@ struct b2ChainShape (
 
         for(i int = 1; i < count; ++i){
             // If the code crashes here, it means your vertices are too close together.
-            b2Assert(b2DistanceSquared(vertices[i - 1], vertices[i], #get __file__, #get __line__, 'b2Assert(b2DistanceSquared(vertices[i - 1], vertices[i])') > b2_linearSlop * b2_linearSlop)
+            b2Assert(b2DistanceSquared(vertices[i - 1], vertices[i]) > b2_linearSlop * b2_linearSlop, #get __file__, #get __line__, 'b2Assert(b2DistanceSquared(vertices[i - 1], vertices[i]) > b2_linearSlop * b2_linearSlop)')
         }
 
         this.m_count = count

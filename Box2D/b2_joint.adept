@@ -453,6 +453,6 @@ func b2Joint\Destroy(joint *b2Joint, allocator *b2BlockAllocator) void {
     case b2JointType::e_weldJoint,      allocator.Free(joint, sizeof b2WeldJoint)
     case b2JointType::e_frictionJoint,  allocator.Free(joint, sizeof b2FrictionJoint)
     case b2JointType::e_motorJoint,     allocator.Free(joint, sizeof b2MotorJoint)
-    default b2Assert(false, #get __file__, #get __line__, 'b2Assert(false)')se)
+    default b2Assert(false, #get __file__, #get __line__, 'b2Assert(false)')
 	}
 }

@@ -32,10 +32,14 @@ import "b2_settings.adept"
 #define b2DEBUG false
 
 // Dumb assert to satisfy b2Assert definition
-func b2Assert(value bool, file *ubyte, line usize, condition *ubyte) {
+func b2Assert(value bool, file String, line usize, condition *ubyte) {
     if value, return
+
+    file_cstr *ubyte = file.cstr()
+    defer delete file_cstr
+
     printf('b2Assert() FAILED!!! TERMINATING...\n')
-    printf('%s:%d: %s\n', file, line as int, condition)
+    printf('%s:%d: %s\n', file_cstr, line as int, condition)
     exit(0xFF)
 }
 

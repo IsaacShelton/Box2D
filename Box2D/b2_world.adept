@@ -146,7 +146,7 @@ struct b2World (
     /// is retained.
     /// @warning This function is locked during callbacks.
     func CreateBody(in definition *b2BodyDef) *b2Body {
-        b2Assert(this.IsLocked(, #get __file__, #get __line__, 'b2Assert(this.IsLocked()') == false)
+        b2Assert(this.IsLocked() == false, #get __file__, #get __line__, 'b2Assert(this.IsLocked() == false)')
         if this.IsLocked(), return null
 
         b *b2Body = this.m_blockAllocator.Allocate(sizeof b2Body) as *b2Body
@@ -168,7 +168,7 @@ struct b2World (
     /// @warning This function is locked during callbacks.
     func DestroyBody(b *b2Body) void {
         b2Assert(this.m_bodyCount > 0, #get __file__, #get __line__, 'b2Assert(this.m_bodyCount > 0)')
-        b2Assert(this.IsLocked(, #get __file__, #get __line__, 'b2Assert(this.IsLocked()') == false)
+        b2Assert(this.IsLocked() == false, #get __file__, #get __line__, 'b2Assert(this.IsLocked() == false)')
 
         if this.IsLocked(), return
 
@@ -232,7 +232,7 @@ struct b2World (
     /// is retained. This may cause the connected bodies to cease colliding.
     /// @warning This function is locked during callbacks.
     func CreateJoint(in definition *b2JointDef) *b2Joint {
-        b2Assert(this.IsLocked(, #get __file__, #get __line__, 'b2Assert(this.IsLocked()') == false)
+        b2Assert(this.IsLocked() == false, #get __file__, #get __line__, 'b2Assert(this.IsLocked() == false)')
         if this.IsLocked(), return null
 
         j *b2Joint = b2Joint\Create(definition, &this.m_blockAllocator)
@@ -287,7 +287,7 @@ struct b2World (
     /// Destroy a joint. This may cause the connected bodies to begin colliding.
     /// @warning This function is locked during callbacks.
     func DestroyJoint(j *b2Joint) void {
-        b2Assert(this.IsLocked(, #get __file__, #get __line__, 'b2Assert(this.IsLocked()') == false)
+        b2Assert(this.IsLocked() == false, #get __file__, #get __line__, 'b2Assert(this.IsLocked() == false)')
         if this.IsLocked(), return
 
         collideConnected bool = j.m_collideConnected
@@ -748,7 +748,7 @@ struct b2World (
             while stackCount > 0 {
                 // Grab the next body off the stack and add it to the island.
                 b *b2Body = stack[--stackCount]
-                b2Assert(b.IsEnabled(, #get __file__, #get __line__, 'b2Assert(b.IsEnabled()') == true)
+                b2Assert(b.IsEnabled() == true, #get __file__, #get __line__, 'b2Assert(b.IsEnabled() == true)')
                 island.Add(b)
 
                 // To keep islands as small as possible, we don't

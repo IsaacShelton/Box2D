@@ -100,7 +100,7 @@ struct b2DynamicTree (
     /// Destroy a proxy. This asserts if the id is invalid.
     func DestroyProxy(proxyId int) void {
         b2Assert(0 <= proxyId && proxyId < this.m_nodeCapacity, #get __file__, #get __line__, 'b2Assert(0 <= proxyId && proxyId < this.m_nodeCapacity)')
-        b2Assert(this.m_nodes[proxyId].IsLeaf(, #get __file__, #get __line__, 'b2Assert(this.m_nodes[proxyId].IsLeaf()'))
+        b2Assert(this.m_nodes[proxyId].IsLeaf(), #get __file__, #get __line__, 'b2Assert(this.m_nodes[proxyId].IsLeaf())')
 
         this.RemoveLeaf(proxyId)
         this.FreeNode(proxyId)
@@ -113,7 +113,7 @@ struct b2DynamicTree (
     func MoveProxy(proxyId int, in aabb *b2AABB, in displacement *b2Vec2) bool {
         b2Assert(0 <= proxyId && proxyId < this.m_nodeCapacity, #get __file__, #get __line__, 'b2Assert(0 <= proxyId && proxyId < this.m_nodeCapacity)')
 
-        b2Assert(this.m_nodes[proxyId].IsLeaf(, #get __file__, #get __line__, 'b2Assert(this.m_nodes[proxyId].IsLeaf()'))
+        b2Assert(this.m_nodes[proxyId].IsLeaf(), #get __file__, #get __line__, 'b2Assert(this.m_nodes[proxyId].IsLeaf())')
 
         // Extend AABB
         fatAABB POD b2AABB = undef
@@ -226,7 +226,7 @@ struct b2DynamicTree (
         p1 POD b2Vec2 = input.p1
         p2 POD b2Vec2 = input.p2
         r POD b2Vec2 = p2 - p1
-        b2Assert(r.LengthSquared(, #get __file__, #get __line__, 'b2Assert(r.LengthSquared()') > 0.0f)
+        b2Assert(r.LengthSquared() > 0.0f, #get __file__, #get __line__, 'b2Assert(r.LengthSquared() > 0.0f)')
         r.Normalize()
 
         // v is perpendicular to the segment.
@@ -310,7 +310,7 @@ struct b2DynamicTree (
                 ++freeCount
             }
 
-            b2Assert(this.GetHeight(, #get __file__, #get __line__, 'b2Assert(this.GetHeight()') == this.ComputeHeight());
+            b2Assert(this.GetHeight() == this.ComputeHeight(), #get __file__, #get __line__, 'b2Assert(this.GetHeight() == this.ComputeHeight())');
 
             b2Assert(this.m_nodeCount + this.freeCount == this.m_nodeCapacity, #get __file__, #get __line__, 'b2Assert(this.m_nodeCount + this.freeCount == this.m_nodeCapacity)')
         #end
@@ -332,7 +332,7 @@ struct b2DynamicTree (
             node *b2TreeNode = this.m_nodes at i
             if node.height <= 1, continue
 
-            b2Assert(node.IsLeaf(, #get __file__, #get __line__, 'b2Assert(node.IsLeaf()') == false)
+            b2Assert(node.IsLeaf() == false, #get __file__, #get __line__, 'b2Assert(node.IsLeaf() == false)')
 
             child1 int = node.child1
             child2 int = node.child2

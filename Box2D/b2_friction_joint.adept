@@ -131,7 +131,7 @@ struct b2FrictionJoint (
 
     /// Set the maximum friction force in N.
     func SetMaxForce(force float) void {
-        b2Assert(b2IsValid(force, #get __file__, #get __line__, 'b2Assert(b2IsValid(force)') && force >= 0.0f)
+        b2Assert(b2IsValid(force) && force >= 0.0f, #get __file__, #get __line__, 'b2Assert(b2IsValid(force) && force >= 0.0f)')
         this.m_maxForce = force
     }
 
@@ -142,7 +142,7 @@ struct b2FrictionJoint (
 
     /// Set the maximum friction torque in N*m.
     func SetMaxTorque(torque float) void {
-        b2Assert(b2IsValid(torque, #get __file__, #get __line__, 'b2Assert(b2IsValid(torque)') && torque >= 0.0f)
+        b2Assert(b2IsValid(torque) && torque >= 0.0f, #get __file__, #get __line__, 'b2Assert(b2IsValid(torque) && torque >= 0.0f)')
         this.m_maxTorque = torque
     }
 

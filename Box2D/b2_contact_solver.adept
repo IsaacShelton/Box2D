@@ -401,8 +401,8 @@ struct b2ContactSolver (
                         vn1 = b2Dot(dv1, normal)
                         vn2 = b2Dot(dv2, normal)
 
-                        b2Assert(b2Abs(vn1 - cp1.velocityBias, #get __file__, #get __line__, 'b2Assert(b2Abs(vn1 - cp1.velocityBias)') < _k_errorTol)
-                        b2Assert(b2Abs(vn2 - cp2.velocityBias, #get __file__, #get __line__, 'b2Assert(b2Abs(vn2 - cp2.velocityBias)') < _k_errorTol)
+                        b2Assert(b2Abs(vn1 - cp1.velocityBias) < _k_errorTol, #get __file__, #get __line__, 'b2Assert(b2Abs(vn1 - cp1.velocityBias) < _k_errorTol)')
+                        b2Assert(b2Abs(vn2 - cp2.velocityBias) < _k_errorTol, #get __file__, #get __line__, 'b2Assert(b2Abs(vn2 - cp2.velocityBias) < _k_errorTol)')
                         #end
                         break
                     }
@@ -441,7 +441,7 @@ struct b2ContactSolver (
                         // Compute normal velocity
                         vn1 = b2Dot(dv1, normal)
 
-                        b2Assert(b2Abs(vn1 - cp1.velocityBias, #get __file__, #get __line__, 'b2Assert(b2Abs(vn1 - cp1.velocityBias)') < _k_errorTol)
+                        b2Assert(b2Abs(vn1 - cp1.velocityBias) < _k_errorTol, #get __file__, #get __line__, 'b2Assert(b2Abs(vn1 - cp1.velocityBias) < _k_errorTol)')
                         #end
                         break
                     }
@@ -482,7 +482,7 @@ struct b2ContactSolver (
                         // Compute normal velocity
                         vn2 = b2Dot(dv2, normal)
 
-                        b2Assert(b2Abs(vn2 - cp2.velocityBias, #get __file__, #get __line__, 'b2Assert(b2Abs(vn2 - cp2.velocityBias)') < _k_errorTol)
+                        b2Assert(b2Abs(vn2 - cp2.velocityBias) < _k_errorTol, #get __file__, #get __line__, 'b2Assert(b2Abs(vn2 - cp2.velocityBias) < _k_errorTol)')
                         #end
                         break
                     }

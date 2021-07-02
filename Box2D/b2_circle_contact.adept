@@ -43,7 +43,7 @@ func b2CircleContact\Destroy(contact *b2Contact, allocator *b2BlockAllocator) vo
 
 func b2CircleContact(uninitialized *b2CircleContact, fixtureA *b2Fixture, fixtureB *b2Fixture) *b2CircleContact {
     b2Contact(uninitialized, false, fixtureA, 0, fixtureB, 0)
-    b2Assert(uninitialized.m_fixtureA.GetType(, #get __file__, #get __line__, 'b2Assert(uninitialized.m_fixtureA.GetType()') == b2ShapeType::e_circle)
-    b2Assert(uninitialized.m_fixtureB.GetType(, #get __file__, #get __line__, 'b2Assert(uninitialized.m_fixtureB.GetType()') == b2ShapeType::e_circle)
+    b2Assert(uninitialized.m_fixtureA.GetType() == b2ShapeType::e_circle, #get __file__, #get __line__, 'b2Assert(uninitialized.m_fixtureA.GetType() == b2ShapeType::e_circle)')
+    b2Assert(uninitialized.m_fixtureB.GetType() == b2ShapeType::e_circle, #get __file__, #get __line__, 'b2Assert(uninitialized.m_fixtureB.GetType() == b2ShapeType::e_circle)')
     return uninitialized
 }

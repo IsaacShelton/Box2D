@@ -174,7 +174,7 @@ struct b2Body (
     /// @param def the fixture definition.
     /// @warning This function is locked during callbacks.
     func CreateFixture(definition *b2FixtureDef) *b2Fixture {
-        b2Assert(this.m_world.IsLocked(, #get __file__, #get __line__, 'b2Assert(this.m_world.IsLocked()') == false)
+        b2Assert(this.m_world.IsLocked() == false, #get __file__, #get __line__, 'b2Assert(this.m_world.IsLocked() == false)')
         if this.m_world.IsLocked(), return null
 
         allocator *b2BlockAllocator = &this.m_world.m_blockAllocator
@@ -231,7 +231,7 @@ struct b2Body (
     func DestroyFixture(fixture *b2Fixture) {
         if fixture == null, return
 
-        b2Assert(this.m_world.IsLocked(, #get __file__, #get __line__, 'b2Assert(this.m_world.IsLocked()') == false)
+        b2Assert(this.m_world.IsLocked() == false, #get __file__, #get __line__, 'b2Assert(this.m_world.IsLocked() == false)')
         if this.m_world.IsLocked(), return
 
         b2Assert(fixture.m_body == this, #get __file__, #get __line__, 'b2Assert(fixture.m_body == this)')
@@ -294,7 +294,7 @@ struct b2Body (
     /// @param position the world position of the body's local origin.
     /// @param angle the world rotation in radians.
     func SetTransform(in position *b2Vec2, angle float) {
-        b2Assert(this.m_world.IsLocked(, #get __file__, #get __line__, 'b2Assert(this.m_world.IsLocked()') == false)
+        b2Assert(this.m_world.IsLocked() == false, #get __file__, #get __line__, 'b2Assert(this.m_world.IsLocked() == false)')
         if this.m_world.IsLocked(), return
 
         this.m_xf.q.Set(angle)
@@ -510,7 +510,7 @@ struct b2Body (
     /// This function has no effect if the body isn't dynamic.
     /// @param data the mass properties.
     func SetMassData(in massData *b2MassData) void {
-        b2Assert(this.m_world.IsLocked(, #get __file__, #get __line__, 'b2Assert(this.m_world.IsLocked()') == false)
+        b2Assert(this.m_world.IsLocked() == false, #get __file__, #get __line__, 'b2Assert(this.m_world.IsLocked() == false)')
         if this.m_world.IsLocked(), return
 
         if this.m_type != b2_dynamicBody, return
@@ -677,7 +677,7 @@ struct b2Body (
 
     /// Set the type of this body. This may alter the mass and velocity.
     func SetType(type b2BodyType) void {
-        b2Assert(this.m_world.IsLocked(, #get __file__, #get __line__, 'b2Assert(this.m_world.IsLocked()') == false)
+        b2Assert(this.m_world.IsLocked() == false, #get __file__, #get __line__, 'b2Assert(this.m_world.IsLocked() == false)')
 
         if this.m_world.IsLocked(), return
         if this.m_type == type, return
@@ -792,7 +792,7 @@ struct b2Body (
     /// An diabled body is still owned by a b2World object and remains
     /// in the body list.
     func SetEnabled(flag bool) void {
-        b2Assert(this.m_world.IsLocked(, #get __file__, #get __line__, 'b2Assert(this.m_world.IsLocked()') == false)
+        b2Assert(this.m_world.IsLocked() == false, #get __file__, #get __line__, 'b2Assert(this.m_world.IsLocked() == false)')
 
         if flag == this.IsEnabled(), return
 
@@ -974,12 +974,12 @@ struct b2Body (
 }
 
 func b2Body(uninitialized *b2Body, bd *b2BodyDef, world *b2World) *b2Body {
-    b2Assert(bd.position.IsValid(, #get __file__, #get __line__, 'b2Assert(bd.position.IsValid()'))
-    b2Assert(bd.linearVelocity.IsValid(, #get __file__, #get __line__, 'b2Assert(bd.linearVelocity.IsValid()'))
-    b2Assert(b2IsValid(bd.angle, #get __file__, #get __line__, 'b2Assert(b2IsValid(bd.angle)'))
-    b2Assert(b2IsValid(bd.angularVelocity, #get __file__, #get __line__, 'b2Assert(b2IsValid(bd.angularVelocity)'))
-    b2Assert(b2IsValid(bd.angularDamping, #get __file__, #get __line__, 'b2Assert(b2IsValid(bd.angularDamping)') && bd.angularDamping >= 0.0f)
-    b2Assert(b2IsValid(bd.linearDamping, #get __file__, #get __line__, 'b2Assert(b2IsValid(bd.linearDamping)') && bd.linearDamping >= 0.0f)
+    b2Assert(bd.position.IsValid(), #get __file__, #get __line__, 'b2Assert(bd.position.IsValid())')
+    b2Assert(bd.linearVelocity.IsValid(), #get __file__, #get __line__, 'b2Assert(bd.linearVelocity.IsValid())')
+    b2Assert(b2IsValid(bd.angle), #get __file__, #get __line__, 'b2Assert(b2IsValid(bd.angle))')
+    b2Assert(b2IsValid(bd.angularVelocity), #get __file__, #get __line__, 'b2Assert(b2IsValid(bd.angularVelocity))')
+    b2Assert(b2IsValid(bd.angularDamping) && bd.angularDamping >= 0.0f, #get __file__, #get __line__, 'b2Assert(b2IsValid(bd.angularDamping) && bd.angularDamping >= 0.0f)')
+    b2Assert(b2IsValid(bd.linearDamping) && bd.linearDamping >= 0.0f, #get __file__, #get __line__, 'b2Assert(b2IsValid(bd.linearDamping) && bd.linearDamping >= 0.0f)')
     
     uninitialized.m_flags = 0
 

@@ -155,7 +155,7 @@ struct b2GearJoint (
 
     /// Set/Get the gear ratio.
     func SetRatio(ratio float) void {
-        b2Assert(b2IsValid(ratio, #get __file__, #get __line__, 'b2Assert(b2IsValid(ratio)'))
+        b2Assert(b2IsValid(ratio), #get __file__, #get __line__, 'b2Assert(b2IsValid(ratio))')
         this.m_ratio = ratio
     }
 

@@ -159,7 +159,7 @@ struct b2PolygonShape (
             i1 int = i
             i2 int = i + 1 < m ? i + 1 : 0
             edge POD b2Vec2 = this.m_vertices[i2] - this.m_vertices[i1]
-            b2Assert(edge.LengthSquared(, #get __file__, #get __line__, 'b2Assert(edge.LengthSquared()') > b2_epsilon * b2_epsilon)
+            b2Assert(edge.LengthSquared() > b2_epsilon * b2_epsilon, #get __file__, #get __line__, 'b2Assert(edge.LengthSquared() > b2_epsilon * b2_epsilon)')
             this.m_normals[i] = b2Cross(edge, 1.0f)
             this.m_normals[i].Normalize()
         }

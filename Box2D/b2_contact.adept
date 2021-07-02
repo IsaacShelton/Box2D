@@ -441,7 +441,7 @@ func b2Contact\Create(fixtureA *b2Fixture, indexA int, fixtureB *b2Fixture, inde
 }
 
 func b2Contact\Destroy(contact *b2Contact, allocator *b2BlockAllocator) void {
-    b2Assert(b2Contact\s_initialized, #get __file__, #get __line__, 'b2Assert(b2Contact\s_initialized)')
+    b2Assert(b2Contact\s_initialized, #get __file__, #get __line__, 'b2Assert(b2Contact\\s_initialized)')
 
     fixtureA *b2Fixture = contact.m_fixtureA
     fixtureB *b2Fixture = contact.m_fixtureB
