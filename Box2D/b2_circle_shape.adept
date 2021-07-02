@@ -49,8 +49,8 @@ struct b2CircleShape (struct b2Shape, m_p b2Vec2) {
     }
 
     /// Implement b2Shape.
-	/// @note because the circle is solid, rays that start inside do not hit because the normal is
-	/// not defined.
+    /// @note because the circle is solid, rays that start inside do not hit because the normal is
+    /// not defined.
     func RayCast(
         out output *b2RayCastOutput,
         in input *b2RayCastInput,

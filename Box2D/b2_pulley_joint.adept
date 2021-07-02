@@ -46,40 +46,40 @@ struct b2PulleyJointDef (
     struct b2JointDef,
 
     /// The first ground anchor in world coordinates. This point never moves.
-	groundAnchorA b2Vec2,
+    groundAnchorA b2Vec2,
 
-	/// The second ground anchor in world coordinates. This point never moves.
-	groundAnchorB b2Vec2,
+    /// The second ground anchor in world coordinates. This point never moves.
+    groundAnchorB b2Vec2,
 
-	/// The local anchor point relative to bodyA's origin.
-	localAnchorA b2Vec2,
+    /// The local anchor point relative to bodyA's origin.
+    localAnchorA b2Vec2,
 
-	/// The local anchor point relative to bodyB's origin.
-	localAnchorB b2Vec2,
+    /// The local anchor point relative to bodyB's origin.
+    localAnchorB b2Vec2,
 
-	/// The a reference length for the segment attached to bodyA.
-	lengthA float,
+    /// The a reference length for the segment attached to bodyA.
+    lengthA float,
 
-	/// The a reference length for the segment attached to bodyB.
-	lengthB float,
+    /// The a reference length for the segment attached to bodyB.
+    lengthB float,
 
-	/// The pulley ratio, used to simulate a block-and-tackle.
-	ratio float
+    /// The pulley ratio, used to simulate a block-and-tackle.
+    ratio float
 ) {
     /// Initialize the bodies, anchors, lengths, max lengths, and ratio using the world anchors.
     func Initialize(in bodyA, bodyB *b2Body, in groundAnchorA, groundAnchorB, anchorA, anchorB *b2Vec2, ratio float) void {
         this.bodyA = bodyA
-		this.bodyB = bodyB
-		this.groundAnchorA = *groundAnchorA
-		this.groundAnchorB = *groundAnchorB
-		this.localAnchorA = bodyA.GetLocalPoint(anchorA)
-		this.localAnchorB = bodyB.GetLocalPoint(anchorB)
-		dA POD b2Vec2 = POD *anchorA - *groundAnchorA
-		this.lengthA = dA.Length()
-		dB POD b2Vec2 = POD *anchorB - *groundAnchorB
-		this.lengthB = dB.Length()
-		this.ratio = ratio
-		b2Assert(ratio > b2_epsilon)
+        this.bodyB = bodyB
+        this.groundAnchorA = *groundAnchorA
+        this.groundAnchorB = *groundAnchorB
+        this.localAnchorA = bodyA.GetLocalPoint(anchorA)
+        this.localAnchorB = bodyB.GetLocalPoint(anchorB)
+        dA POD b2Vec2 = POD *anchorA - *groundAnchorA
+        this.lengthA = dA.Length()
+        dB POD b2Vec2 = POD *anchorB - *groundAnchorB
+        this.lengthB = dB.Length()
+        this.ratio = ratio
+        b2Assert(ratio > b2_epsilon, #get __file__, #get __line__, 'b2Assert(ratio > b2_epsilon)')
     }
 }
 
@@ -110,303 +110,303 @@ struct b2PulleyJoint (
     struct b2Joint,
 
     m_groundAnchorA b2Vec2,
-	m_groundAnchorB b2Vec2,
-	m_lengthA float,
-	m_lengthB float,
+    m_groundAnchorB b2Vec2,
+    m_lengthA float,
+    m_lengthB float,
 
-	// Solver shared
-	m_localAnchorA b2Vec2,
-	m_localAnchorB b2Vec2,
-	m_constant float,
-	m_ratio float,
-	m_impulse float,
+    // Solver shared
+    m_localAnchorA b2Vec2,
+    m_localAnchorB b2Vec2,
+    m_constant float,
+    m_ratio float,
+    m_impulse float,
 
-	// Solver temp
-	m_indexA int,
-	m_indexB int,
-	m_uA b2Vec2,
-	m_uB b2Vec2,
-	m_rA b2Vec2,
-	m_rB b2Vec2,
-	m_localCenterA b2Vec2,
-	m_localCenterB b2Vec2,
-	m_invMassA float,
-	m_invMassB float,
-	m_invIA float,
-	m_invIB float,
-	m_mass float
+    // Solver temp
+    m_indexA int,
+    m_indexB int,
+    m_uA b2Vec2,
+    m_uB b2Vec2,
+    m_rA b2Vec2,
+    m_rB b2Vec2,
+    m_localCenterA b2Vec2,
+    m_localCenterB b2Vec2,
+    m_invMassA float,
+    m_invMassB float,
+    m_invIA float,
+    m_invIB float,
+    m_mass float
 ) {
     // (override)
     func GetAnchorA() b2Vec2 {
-		return this.m_bodyA.GetWorldPoint(&this.m_localAnchorA)
+        return this.m_bodyA.GetWorldPoint(&this.m_localAnchorA)
     }
 
     // (override)
-	func GetAnchorB() b2Vec2 {
-		return this.m_bodyB.GetWorldPoint(&this.m_localAnchorB)
+    func GetAnchorB() b2Vec2 {
+        return this.m_bodyB.GetWorldPoint(&this.m_localAnchorB)
     }
 
     // (override)
-	func GetReactionForce(inv_dt float) b2Vec2 {
-		P POD b2Vec2 = POD this.m_impulse * this.m_uB
-		return P * inv_dt
+    func GetReactionForce(inv_dt float) b2Vec2 {
+        P POD b2Vec2 = POD this.m_impulse * this.m_uB
+        return P * inv_dt
     }
 
     // (override)
-	func GetReactionTorque(_inv_dt float) float {
-		return 0.0f
+    func GetReactionTorque(_inv_dt float) float {
+        return 0.0f
     }
 
-	/// Get the first ground anchor.
-	func GetGroundAnchorA() b2Vec2 = this.m_groundAnchorA
+    /// Get the first ground anchor.
+    func GetGroundAnchorA() b2Vec2 = this.m_groundAnchorA
 
-	/// Get the second ground anchor.
-	func GetGroundAnchorB() b2Vec2 = this.m_groundAnchorB
+    /// Get the second ground anchor.
+    func GetGroundAnchorB() b2Vec2 = this.m_groundAnchorB
 
-	/// Get the current length of the segment attached to bodyA.
-	func GetLengthA() float = this.m_lengthA
+    /// Get the current length of the segment attached to bodyA.
+    func GetLengthA() float = this.m_lengthA
 
-	/// Get the current length of the segment attached to bodyB.
-	func GetLengthB() float = this.m_lengthB
+    /// Get the current length of the segment attached to bodyB.
+    func GetLengthB() float = this.m_lengthB
 
-	/// Get the pulley ratio.
-	func GetRatio() float = this.m_ratio
+    /// Get the pulley ratio.
+    func GetRatio() float = this.m_ratio
 
-	/// Get the current length of the segment attached to bodyA.
-	func GetCurrentLengthA() float {
-		p POD b2Vec2 = POD this.m_bodyA.GetWorldPoint(&this.m_localAnchorA)
-		s POD b2Vec2 = POD this.m_groundAnchorA
-		d POD b2Vec2 = POD p - s
-		return d.Length()
+    /// Get the current length of the segment attached to bodyA.
+    func GetCurrentLengthA() float {
+        p POD b2Vec2 = POD this.m_bodyA.GetWorldPoint(&this.m_localAnchorA)
+        s POD b2Vec2 = POD this.m_groundAnchorA
+        d POD b2Vec2 = POD p - s
+        return d.Length()
     }
 
-	/// Get the current length of the segment attached to bodyB.
-	func GetCurrentLengthB() float {
+    /// Get the current length of the segment attached to bodyB.
+    func GetCurrentLengthB() float {
         p POD b2Vec2 = POD this.m_bodyB.GetWorldPoint(&this.m_localAnchorB)
-		s POD b2Vec2 = POD this.m_groundAnchorB
-		d POD b2Vec2 = POD p - s
-		return d.Length()
+        s POD b2Vec2 = POD this.m_groundAnchorB
+        d POD b2Vec2 = POD p - s
+        return d.Length()
     }
 
-	/// Dump joint to dmLog
+    /// Dump joint to dmLog
     // (override)
-	func Dump() void {
-		indexA int = this.m_bodyA.m_islandIndex
-		indexB int = this.m_bodyB.m_islandIndex
+    func Dump() void {
+        indexA int = this.m_bodyA.m_islandIndex
+        indexB int = this.m_bodyB.m_islandIndex
 
-		b2Dump('  b2PulleyJointDef jd;\n')
-		b2Dump('  jd.bodyA = bodies[%d];\n', indexA)
-		b2Dump('  jd.bodyB = bodies[%d];\n', indexB)
-		b2Dump('  jd.collideConnected = bool(%d);\n', this.m_collideConnected)
-		b2Dump('  jd.groundAnchorA.Set(%hf, %hf);\n', this.m_groundAnchorA.x, this.m_groundAnchorA.y)
-		b2Dump('  jd.groundAnchorB.Set(%hf, %hf);\n', this.m_groundAnchorB.x, this.m_groundAnchorB.y)
-		b2Dump('  jd.localAnchorA.Set(%hf, %hf);\n', this.m_localAnchorA.x, this.m_localAnchorA.y)
-		b2Dump('  jd.localAnchorB.Set(%hf, %hf);\n', this.m_localAnchorB.x, this.m_localAnchorB.y)
-		b2Dump('  jd.lengthA = %hf;\n', this.m_lengthA)
-		b2Dump('  jd.lengthB = %hf;\n', this.m_lengthB)
-		b2Dump('  jd.ratio = %hf;\n', this.m_ratio)
-		b2Dump('  joints[%d] = m_world->CreateJoint(&jd);\n', this.m_index)
+        b2Dump('  b2PulleyJointDef jd;\n')
+        b2Dump('  jd.bodyA = bodies[%d];\n', indexA)
+        b2Dump('  jd.bodyB = bodies[%d];\n', indexB)
+        b2Dump('  jd.collideConnected = bool(%d);\n', this.m_collideConnected)
+        b2Dump('  jd.groundAnchorA.Set(%hf, %hf);\n', this.m_groundAnchorA.x, this.m_groundAnchorA.y)
+        b2Dump('  jd.groundAnchorB.Set(%hf, %hf);\n', this.m_groundAnchorB.x, this.m_groundAnchorB.y)
+        b2Dump('  jd.localAnchorA.Set(%hf, %hf);\n', this.m_localAnchorA.x, this.m_localAnchorA.y)
+        b2Dump('  jd.localAnchorB.Set(%hf, %hf);\n', this.m_localAnchorB.x, this.m_localAnchorB.y)
+        b2Dump('  jd.lengthA = %hf;\n', this.m_lengthA)
+        b2Dump('  jd.lengthB = %hf;\n', this.m_lengthB)
+        b2Dump('  jd.ratio = %hf;\n', this.m_ratio)
+        b2Dump('  joints[%d] = m_world->CreateJoint(&jd);\n', this.m_index)
     }
 
-	/// Implement b2Joint::ShiftOrigin
+    /// Implement b2Joint::ShiftOrigin
     // (override)
-	func ShiftOrigin(in newOrigin *b2Vec2) void {
-		this.m_groundAnchorA.SubtractAssign(*newOrigin)
-		this.m_groundAnchorB.SubtractAssign(*newOrigin)
+    func ShiftOrigin(in newOrigin *b2Vec2) void {
+        this.m_groundAnchorA.SubtractAssign(*newOrigin)
+        this.m_groundAnchorB.SubtractAssign(*newOrigin)
     }
 
     // --------------------------------------------------------
 
     // (override)
     func InitVelocityConstraints(in data *b2SolverData) void {
-		this.m_indexA = this.m_bodyA.m_islandIndex
-		this.m_indexB = this.m_bodyB.m_islandIndex
-		this.m_localCenterA = this.m_bodyA.m_sweep.localCenter
-		this.m_localCenterB = this.m_bodyB.m_sweep.localCenter
-		this.m_invMassA = this.m_bodyA.m_invMass
-		this.m_invMassB = this.m_bodyB.m_invMass
-		this.m_invIA = this.m_bodyA.m_invI
-		this.m_invIB = this.m_bodyB.m_invI
+        this.m_indexA = this.m_bodyA.m_islandIndex
+        this.m_indexB = this.m_bodyB.m_islandIndex
+        this.m_localCenterA = this.m_bodyA.m_sweep.localCenter
+        this.m_localCenterB = this.m_bodyB.m_sweep.localCenter
+        this.m_invMassA = this.m_bodyA.m_invMass
+        this.m_invMassB = this.m_bodyB.m_invMass
+        this.m_invIA = this.m_bodyA.m_invI
+        this.m_invIB = this.m_bodyB.m_invI
 
-		cA POD b2Vec2 = POD data.positions[this.m_indexA].c
-		aA float = data.positions[this.m_indexA].a
-		vA POD b2Vec2 = POD data.velocities[this.m_indexA].v
-		wA float = data.velocities[this.m_indexA].w
+        cA POD b2Vec2 = POD data.positions[this.m_indexA].c
+        aA float = data.positions[this.m_indexA].a
+        vA POD b2Vec2 = POD data.velocities[this.m_indexA].v
+        wA float = data.velocities[this.m_indexA].w
 
-		cB POD b2Vec2 = POD data.positions[this.m_indexB].c
-		aB float = data.positions[this.m_indexB].a
-		vB POD b2Vec2 = POD data.velocities[this.m_indexB].v
-		wB float = data.velocities[this.m_indexB].w
+        cB POD b2Vec2 = POD data.positions[this.m_indexB].c
+        aB float = data.positions[this.m_indexB].a
+        vB POD b2Vec2 = POD data.velocities[this.m_indexB].v
+        wB float = data.velocities[this.m_indexB].w
 
-		qA POD b2Rot = POD b2Rot(aA)
-		qB POD b2Rot = POD b2Rot(aB)
+        qA POD b2Rot = POD b2Rot(aA)
+        qB POD b2Rot = POD b2Rot(aB)
 
-		this.m_rA = b2Mul(qA, this.m_localAnchorA - this.m_localCenterA)
-		this.m_rB = b2Mul(qB, this.m_localAnchorB - this.m_localCenterB)
+        this.m_rA = b2Mul(qA, this.m_localAnchorA - this.m_localCenterA)
+        this.m_rB = b2Mul(qB, this.m_localAnchorB - this.m_localCenterB)
 
-		// Get the pulley axes.
-		this.m_uA = cA + this.m_rA - this.m_groundAnchorA
-		this.m_uB = cB + this.m_rB - this.m_groundAnchorB
+        // Get the pulley axes.
+        this.m_uA = cA + this.m_rA - this.m_groundAnchorA
+        this.m_uB = cB + this.m_rB - this.m_groundAnchorB
 
-		lengthA float = this.m_uA.Length()
-		lengthB float = this.m_uB.Length()
+        lengthA float = this.m_uA.Length()
+        lengthB float = this.m_uB.Length()
 
-		if lengthA > 10.0f * b2_linearSlop {
-			this.m_uA.MultiplyAssign(1.0f / lengthA)
-		} else {
-			this.m_uA.SetZero()
-		}
+        if lengthA > 10.0f * b2_linearSlop {
+            this.m_uA.MultiplyAssign(1.0f / lengthA)
+        } else {
+            this.m_uA.SetZero()
+        }
 
-		if lengthB > 10.0f * b2_linearSlop {
-			this.m_uB.MultiplyAssign(1.0f / lengthB)
-		} else {
-			this.m_uB.SetZero()
-		}
+        if lengthB > 10.0f * b2_linearSlop {
+            this.m_uB.MultiplyAssign(1.0f / lengthB)
+        } else {
+            this.m_uB.SetZero()
+        }
 
-		// Compute effective mass.
-		ruA float = b2Cross(this.m_rA, this.m_uA)
-		ruB float = b2Cross(this.m_rB, this.m_uB)
+        // Compute effective mass.
+        ruA float = b2Cross(this.m_rA, this.m_uA)
+        ruB float = b2Cross(this.m_rB, this.m_uB)
 
-		mA float = this.m_invMassA + this.m_invIA * ruA * ruA
-		mB float = this.m_invMassB + this.m_invIB * ruB * ruB
+        mA float = this.m_invMassA + this.m_invIA * ruA * ruA
+        mB float = this.m_invMassB + this.m_invIB * ruB * ruB
 
-		this.m_mass = mA + this.m_ratio * this.m_ratio * mB
+        this.m_mass = mA + this.m_ratio * this.m_ratio * mB
 
-		if this.m_mass > 0.0f {
-			this.m_mass = 1.0f / this.m_mass
-		}
+        if this.m_mass > 0.0f {
+            this.m_mass = 1.0f / this.m_mass
+        }
 
-		if data.step.warmStarting {
-			// Scale impulses to support variable time steps.
-			this.m_impulse *= data.step.dtRatio
+        if data.step.warmStarting {
+            // Scale impulses to support variable time steps.
+            this.m_impulse *= data.step.dtRatio
 
-			// Warm starting.
-			PA POD b2Vec2 = POD this.m_uA * (0.0f - this.m_impulse)
-			PB POD b2Vec2 = POD this.m_uB * (-1.0f * this.m_ratio * this.m_impulse)
+            // Warm starting.
+            PA POD b2Vec2 = POD this.m_uA * (0.0f - this.m_impulse)
+            PB POD b2Vec2 = POD this.m_uB * (-1.0f * this.m_ratio * this.m_impulse)
 
-			vA.AddAssign(PA * this.m_invMassA)
-			wA += this.m_invIA * b2Cross(this.m_rA, PA)
-			vB.AddAssign(PB * this.m_invMassB)
-			wB += this.m_invIB * b2Cross(this.m_rB, PB)
-		} else {
-			this.m_impulse = 0.0f
-		}
+            vA.AddAssign(PA * this.m_invMassA)
+            wA += this.m_invIA * b2Cross(this.m_rA, PA)
+            vB.AddAssign(PB * this.m_invMassB)
+            wB += this.m_invIB * b2Cross(this.m_rB, PB)
+        } else {
+            this.m_impulse = 0.0f
+        }
 
-		data.velocities[this.m_indexA].v = vA
-		data.velocities[this.m_indexA].w = wA
-		data.velocities[this.m_indexB].v = vB
-		data.velocities[this.m_indexB].w = wB
+        data.velocities[this.m_indexA].v = vA
+        data.velocities[this.m_indexA].w = wA
+        data.velocities[this.m_indexB].v = vB
+        data.velocities[this.m_indexB].w = wB
     }
 
-	// (override)
+    // (override)
     func SolveVelocityConstraints(in data *b2SolverData) void {
-		vA POD b2Vec2 = POD data.velocities[this.m_indexA].v
-		wA float = data.velocities[this.m_indexA].w
-		vB POD b2Vec2 = POD data.velocities[this.m_indexB].v
-		wB float = data.velocities[this.m_indexB].w
+        vA POD b2Vec2 = POD data.velocities[this.m_indexA].v
+        wA float = data.velocities[this.m_indexA].w
+        vB POD b2Vec2 = POD data.velocities[this.m_indexB].v
+        wB float = data.velocities[this.m_indexB].w
 
-		vpA POD b2Vec2 = vA + b2Cross(wA, this.m_rA)
-		vpB POD b2Vec2 = vB + b2Cross(wB, this.m_rB)
+        vpA POD b2Vec2 = vA + b2Cross(wA, this.m_rA)
+        vpB POD b2Vec2 = vB + b2Cross(wB, this.m_rB)
 
-		Cdot float = -1.0f * b2Dot(this.m_uA, vpA) - this.m_ratio * b2Dot(this.m_uB, vpB)
-		impulse float = -1.0f * this.m_mass * Cdot
-		this.m_impulse += impulse
+        Cdot float = -1.0f * b2Dot(this.m_uA, vpA) - this.m_ratio * b2Dot(this.m_uB, vpB)
+        impulse float = -1.0f * this.m_mass * Cdot
+        this.m_impulse += impulse
 
-		PA POD b2Vec2 = POD this.m_uA * (0.0f - impulse)
-		PB POD b2Vec2 = POD this.m_uB * (-1.0f * this.m_ratio * impulse)
-		vA.AddAssign(PA * this.m_invMassA)
-		wA += this.m_invIA * b2Cross(this.m_rA, PA)
-		vB.AddAssign(PB * this.m_invMassB)
-		wB += this.m_invIB * b2Cross(this.m_rB, PB)
+        PA POD b2Vec2 = POD this.m_uA * (0.0f - impulse)
+        PB POD b2Vec2 = POD this.m_uB * (-1.0f * this.m_ratio * impulse)
+        vA.AddAssign(PA * this.m_invMassA)
+        wA += this.m_invIA * b2Cross(this.m_rA, PA)
+        vB.AddAssign(PB * this.m_invMassB)
+        wB += this.m_invIB * b2Cross(this.m_rB, PB)
 
-		data.velocities[this.m_indexA].v = vA
-		data.velocities[this.m_indexA].w = wA
-		data.velocities[this.m_indexB].v = vB
-		data.velocities[this.m_indexB].w = wB
+        data.velocities[this.m_indexA].v = vA
+        data.velocities[this.m_indexA].w = wA
+        data.velocities[this.m_indexB].v = vB
+        data.velocities[this.m_indexB].w = wB
     }
 
-	// (override)
+    // (override)
     func SolvePositionConstraints(in data *b2SolverData) bool {
-		cA POD b2Vec2 = POD data.positions[this.m_indexA].c
-		aA float = data.positions[this.m_indexA].a
-		cB POD b2Vec2 = POD data.positions[this.m_indexB].c
-		aB float = data.positions[this.m_indexB].a
+        cA POD b2Vec2 = POD data.positions[this.m_indexA].c
+        aA float = data.positions[this.m_indexA].a
+        cB POD b2Vec2 = POD data.positions[this.m_indexB].c
+        aB float = data.positions[this.m_indexB].a
 
-		qA POD b2Rot = POD b2Rot(aA)
-		qB POD b2Rot = POD b2Rot(aB)
+        qA POD b2Rot = POD b2Rot(aA)
+        qB POD b2Rot = POD b2Rot(aB)
 
-		rA POD b2Vec2 = POD b2Mul(qA, this.m_localAnchorA - this.m_localCenterA)
-		rB POD b2Vec2 = POD b2Mul(qB, this.m_localAnchorB - this.m_localCenterB)
+        rA POD b2Vec2 = POD b2Mul(qA, this.m_localAnchorA - this.m_localCenterA)
+        rB POD b2Vec2 = POD b2Mul(qB, this.m_localAnchorB - this.m_localCenterB)
 
-		// Get the pulley axes.
-		uA POD b2Vec2 = POD cA + rA - this.m_groundAnchorA
-		uB POD b2Vec2 = POD cB + rB - this.m_groundAnchorB
+        // Get the pulley axes.
+        uA POD b2Vec2 = POD cA + rA - this.m_groundAnchorA
+        uB POD b2Vec2 = POD cB + rB - this.m_groundAnchorB
 
-		lengthA float = uA.Length()
-		lengthB float = uB.Length()
+        lengthA float = uA.Length()
+        lengthB float = uB.Length()
 
-		if lengthA > 10.0f * b2_linearSlop {
-			uA = uA * (1.0f / lengthA)
-		} else {
-			uA.SetZero()
-		}
+        if lengthA > 10.0f * b2_linearSlop {
+            uA = uA * (1.0f / lengthA)
+        } else {
+            uA.SetZero()
+        }
 
-		if lengthB > 10.0f * b2_linearSlop {
-			uB = uB * (1.0f / lengthB)
-		} else {
-			uB.SetZero()
-		}
+        if lengthB > 10.0f * b2_linearSlop {
+            uB = uB * (1.0f / lengthB)
+        } else {
+            uB.SetZero()
+        }
 
-		// Compute effective mass.
-		ruA float = b2Cross(rA, uA)
-		ruB float = b2Cross(rB, uB)
+        // Compute effective mass.
+        ruA float = b2Cross(rA, uA)
+        ruB float = b2Cross(rB, uB)
 
-		mA float = this.m_invMassA + this.m_invIA * ruA * ruA
-		mB float = this.m_invMassB + this.m_invIB * ruB * ruB
+        mA float = this.m_invMassA + this.m_invIA * ruA * ruA
+        mB float = this.m_invMassB + this.m_invIB * ruB * ruB
 
-		mass float = mA + this.m_ratio * this.m_ratio * mB
+        mass float = mA + this.m_ratio * this.m_ratio * mB
 
-		if mass > 0.0f {
-			mass = 1.0f / mass
-		}
+        if mass > 0.0f {
+            mass = 1.0f / mass
+        }
 
-		C float = this.m_constant - lengthA - this.m_ratio * lengthB
-		linearError float = b2Abs(C)
+        C float = this.m_constant - lengthA - this.m_ratio * lengthB
+        linearError float = b2Abs(C)
 
-		impulse float = -1.0f * mass * C
+        impulse float = -1.0f * mass * C
 
-		PA POD b2Vec2 = POD uA * (0.0f - impulse)
-		PB POD b2Vec2 = POD uB * (-1.0f * this.m_ratio * impulse)
+        PA POD b2Vec2 = POD uA * (0.0f - impulse)
+        PB POD b2Vec2 = POD uB * (-1.0f * this.m_ratio * impulse)
 
-		cA.AddAssign(PA * this.m_invMassA)
-		aA += this.m_invIA * b2Cross(rA, PA)
-		cB.AddAssign(PB * this.m_invMassB)
-		aB += this.m_invIB * b2Cross(rB, PB)
+        cA.AddAssign(PA * this.m_invMassA)
+        aA += this.m_invIA * b2Cross(rA, PA)
+        cB.AddAssign(PB * this.m_invMassB)
+        aB += this.m_invIB * b2Cross(rB, PB)
 
-		data.positions[this.m_indexA].c = cA
-		data.positions[this.m_indexA].a = aA
-		data.positions[this.m_indexB].c = cB
-		data.positions[this.m_indexB].a = aB
+        data.positions[this.m_indexA].c = cA
+        data.positions[this.m_indexA].a = aA
+        data.positions[this.m_indexB].c = cB
+        data.positions[this.m_indexB].a = aB
 
-		return linearError < b2_linearSlop
+        return linearError < b2_linearSlop
     }
 }
 
 func b2Joint\CreateRaw\b2PulleyJoint(out uninitialized *b2PulleyJoint, in definition *b2PulleyJointDef) *b2PulleyJoint {
-	b2Joint(uninitialized, definition as *b2JointDef)
+    b2Joint(uninitialized, definition as *b2JointDef)
 
-	uninitialized.m_groundAnchorA = definition.groundAnchorA
-	uninitialized.m_groundAnchorB = definition.groundAnchorB
-	uninitialized.m_localAnchorA = definition.localAnchorA
-	uninitialized.m_localAnchorB = definition.localAnchorB
+    uninitialized.m_groundAnchorA = definition.groundAnchorA
+    uninitialized.m_groundAnchorB = definition.groundAnchorB
+    uninitialized.m_localAnchorA = definition.localAnchorA
+    uninitialized.m_localAnchorB = definition.localAnchorB
 
-	uninitialized.m_lengthA = definition.lengthA
-	uninitialized.m_lengthB = definition.lengthB
+    uninitialized.m_lengthA = definition.lengthA
+    uninitialized.m_lengthB = definition.lengthB
 
-	b2Assert(definition.ratio != 0.0f)
-	uninitialized.m_ratio = definition.ratio
+    b2Assert(definition.ratio != 0.0f, #get __file__, #get __line__, 'b2Assert(definition.ratio != 0.0f)')
+    uninitialized.m_ratio = definition.ratio
 
-	uninitialized.m_constant = definition.lengthA + uninitialized.m_ratio * definition.lengthB
-	uninitialized.m_impulse = 0.0f
-	return uninitialized
+    uninitialized.m_constant = definition.lengthA + uninitialized.m_ratio * definition.lengthB
+    uninitialized.m_impulse = 0.0f
+    return uninitialized
 }

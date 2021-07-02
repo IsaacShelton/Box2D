@@ -22,14 +22,14 @@ func b2Timer() b2Timer {
 
 func Reset(this *b2Timer) {
     largeInteger LARGE_INTEGER = undef
-	QueryPerformanceCounter(&largeInteger)
-	this.m_start = cast double largeInteger.QuadPart
+    QueryPerformanceCounter(&largeInteger)
+    this.m_start = cast double largeInteger.QuadPart
 }
 
 func GetMilliseconds(this *b2Timer) float {
     largeInteger LARGE_INTEGER = undef
-	QueryPerformanceCounter(&largeInteger)
-	count double = cast double largeInteger.QuadPart
-	ms float = cast float (b2Timer\s_invFrequency * (count - this.m_start))
-	return ms
+    QueryPerformanceCounter(&largeInteger)
+    count double = cast double largeInteger.QuadPart
+    ms float = cast float (b2Timer\s_invFrequency * (count - this.m_start))
+    return ms
 }

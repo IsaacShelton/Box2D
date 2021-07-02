@@ -52,14 +52,14 @@ struct b2GearJointDef (
     struct b2JointDef,
 
     /// The first revolute/prismatic joint attached to the gear joint.
-	joint1 *b2Joint,
+    joint1 *b2Joint,
 
-	/// The second revolute/prismatic joint attached to the gear joint.
-	joint2 *b2Joint,
+    /// The second revolute/prismatic joint attached to the gear joint.
+    joint2 *b2Joint,
 
-	/// The gear ratio.
-	/// @see b2GearJoint for explanation.
-	ratio float
+    /// The gear ratio.
+    /// @see b2GearJoint for explanation.
+    ratio float
 )
 
 func b2GearJointDef() b2GearJointDef {
@@ -85,41 +85,41 @@ struct b2GearJoint (
     struct b2Joint,
 
     m_joint1 *b2Joint,
-	m_joint2 *b2Joint,
+    m_joint2 *b2Joint,
 
-	m_typeA b2JointType,
-	m_typeB b2JointType,
+    m_typeA b2JointType,
+    m_typeB b2JointType,
 
-	// Body A is connected to body C
-	// Body B is connected to body D
-	m_bodyC *b2Body,
-	m_bodyD *b2Body,
+    // Body A is connected to body C
+    // Body B is connected to body D
+    m_bodyC *b2Body,
+    m_bodyD *b2Body,
 
-	// Solver shared
-	m_localAnchorA b2Vec2,
-	m_localAnchorB b2Vec2,
-	m_localAnchorC b2Vec2,
-	m_localAnchorD b2Vec2,
+    // Solver shared
+    m_localAnchorA b2Vec2,
+    m_localAnchorB b2Vec2,
+    m_localAnchorC b2Vec2,
+    m_localAnchorD b2Vec2,
 
-	m_localAxisC b2Vec2,
-	m_localAxisD b2Vec2,
+    m_localAxisC b2Vec2,
+    m_localAxisD b2Vec2,
 
-	m_referenceAngleA float,
-	m_referenceAngleB float,
+    m_referenceAngleA float,
+    m_referenceAngleB float,
 
-	m_constant float,
-	m_ratio float,
+    m_constant float,
+    m_ratio float,
 
-	m_impulse float,
+    m_impulse float,
 
-	// Solver temp
-	m_indexA, m_indexB, m_indexC, m_indexD int,
-	m_lcA, m_lcB, m_lcC, m_lcD b2Vec2,
-	m_mA, m_mB, m_mC, m_mD float,
-	m_iA, m_iB, m_iC, m_iD float,
-	m_JvAC, m_JvBD b2Vec2,
-	m_JwA, m_JwB, m_JwC, m_JwD float,
-	m_mass float
+    // Solver temp
+    m_indexA, m_indexB, m_indexC, m_indexD int,
+    m_lcA, m_lcB, m_lcC, m_lcD b2Vec2,
+    m_mA, m_mB, m_mC, m_mD float,
+    m_iA, m_iB, m_iC, m_iD float,
+    m_JvAC, m_JvBD b2Vec2,
+    m_JwA, m_JwB, m_JwC, m_JwD float,
+    m_mass float
 ) {
     // (override)
     func GetAnchorA() b2Vec2 {
@@ -127,59 +127,59 @@ struct b2GearJoint (
     }
 
     // (override)
-	func GetAnchorB() b2Vec2 {
-		return this.m_bodyB.GetWorldPoint(&this.m_localAnchorB)
+    func GetAnchorB() b2Vec2 {
+        return this.m_bodyB.GetWorldPoint(&this.m_localAnchorB)
     }
 
     // (override)
-	func GetReactionForce(inv_dt float) b2Vec2 {
-		P POD b2Vec2 = this.m_impulse * this.m_JvAC
-		return inv_dt * P
+    func GetReactionForce(inv_dt float) b2Vec2 {
+        P POD b2Vec2 = this.m_impulse * this.m_JvAC
+        return inv_dt * P
     }
 
     // (override)
-	func GetReactionTorque(inv_dt float) float {
-		L float = this.m_impulse * this.m_JwA
-		return inv_dt * L
+    func GetReactionTorque(inv_dt float) float {
+        L float = this.m_impulse * this.m_JwA
+        return inv_dt * L
     }
 
-	/// Get the first joint.
-	func GetJoint1() *b2Joint {
+    /// Get the first joint.
+    func GetJoint1() *b2Joint {
         return this.m_joint1
     }
 
-	/// Get the second joint.
-	func GetJoint2() *b2Joint {
+    /// Get the second joint.
+    func GetJoint2() *b2Joint {
         return this.m_joint2
     }
 
-	/// Set/Get the gear ratio.
-	func SetRatio(ratio float) void {
-		b2Assert(b2IsValid(ratio))
-		this.m_ratio = ratio
+    /// Set/Get the gear ratio.
+    func SetRatio(ratio float) void {
+        b2Assert(b2IsValid(ratio, #get __file__, #get __line__, 'b2Assert(b2IsValid(ratio)'))
+        this.m_ratio = ratio
     }
 
-	func GetRatio() float {
-		return this.m_ratio
+    func GetRatio() float {
+        return this.m_ratio
     }
 
-	/// Dump joint to dmLog
+    /// Dump joint to dmLog
     // (override)
     func Dump() {
-		indexA int = this.m_bodyA.m_islandIndex
-		indexB int = this.m_bodyB.m_islandIndex
+        indexA int = this.m_bodyA.m_islandIndex
+        indexB int = this.m_bodyB.m_islandIndex
 
-		index1 int = this.m_joint1.m_index
-		index2 int = this.m_joint2.m_index
+        index1 int = this.m_joint1.m_index
+        index2 int = this.m_joint2.m_index
 
-		b2Dump('  b2GearJointDef jd;\n')
-		b2Dump('  jd.bodyA = bodies[%d];\n', indexA)
-		b2Dump('  jd.bodyB = bodies[%d];\n', indexB)
-		b2Dump('  jd.collideConnected = bool(%d);\n', this.m_collideConnected)
-		b2Dump('  jd.joint1 = joints[%d];\n', index1)
-		b2Dump('  jd.joint2 = joints[%d];\n', index2)
-		b2Dump('  jd.ratio = %hf;\n', this.m_ratio)
-		b2Dump('  joints[%d] = m_world.CreateJoint(&jd);\n', this.m_index)
+        b2Dump('  b2GearJointDef jd;\n')
+        b2Dump('  jd.bodyA = bodies[%d];\n', indexA)
+        b2Dump('  jd.bodyB = bodies[%d];\n', indexB)
+        b2Dump('  jd.collideConnected = bool(%d);\n', this.m_collideConnected)
+        b2Dump('  jd.joint1 = joints[%d];\n', index1)
+        b2Dump('  jd.joint2 = joints[%d];\n', index2)
+        b2Dump('  jd.ratio = %hf;\n', this.m_ratio)
+        b2Dump('  joints[%d] = m_world.CreateJoint(&jd);\n', this.m_index)
     }
 
     // --------------------------------------------------------
@@ -187,230 +187,230 @@ struct b2GearJoint (
     // (override)
     func InitVelocityConstraints(data *b2SolverData) void {
         this.m_indexA = this.m_bodyA.m_islandIndex
-		this.m_indexB = this.m_bodyB.m_islandIndex
-		this.m_indexC = this.m_bodyC.m_islandIndex
-		this.m_indexD = this.m_bodyD.m_islandIndex
-		this.m_lcA = this.m_bodyA.m_sweep.localCenter
-		this.m_lcB = this.m_bodyB.m_sweep.localCenter
-		this.m_lcC = this.m_bodyC.m_sweep.localCenter
-		this.m_lcD = this.m_bodyD.m_sweep.localCenter
-		this.m_mA = this.m_bodyA.m_invMass
-		this.m_mB = this.m_bodyB.m_invMass
-		this.m_mC = this.m_bodyC.m_invMass
-		this.m_mD = this.m_bodyD.m_invMass
-		this.m_iA = this.m_bodyA.m_invI
-		this.m_iB = this.m_bodyB.m_invI
-		this.m_iC = this.m_bodyC.m_invI
-		this.m_iD = this.m_bodyD.m_invI
+        this.m_indexB = this.m_bodyB.m_islandIndex
+        this.m_indexC = this.m_bodyC.m_islandIndex
+        this.m_indexD = this.m_bodyD.m_islandIndex
+        this.m_lcA = this.m_bodyA.m_sweep.localCenter
+        this.m_lcB = this.m_bodyB.m_sweep.localCenter
+        this.m_lcC = this.m_bodyC.m_sweep.localCenter
+        this.m_lcD = this.m_bodyD.m_sweep.localCenter
+        this.m_mA = this.m_bodyA.m_invMass
+        this.m_mB = this.m_bodyB.m_invMass
+        this.m_mC = this.m_bodyC.m_invMass
+        this.m_mD = this.m_bodyD.m_invMass
+        this.m_iA = this.m_bodyA.m_invI
+        this.m_iB = this.m_bodyB.m_invI
+        this.m_iC = this.m_bodyC.m_invI
+        this.m_iD = this.m_bodyD.m_invI
 
-		aA float = data.positions[this.m_indexA].a
-		vA POD b2Vec2 = data.velocities[this.m_indexA].v
-		wA float = data.velocities[this.m_indexA].w
+        aA float = data.positions[this.m_indexA].a
+        vA POD b2Vec2 = data.velocities[this.m_indexA].v
+        wA float = data.velocities[this.m_indexA].w
 
-		aB float = data.positions[this.m_indexB].a
-		vB POD b2Vec2 = data.velocities[this.m_indexB].v
-		wB float = data.velocities[this.m_indexB].w
+        aB float = data.positions[this.m_indexB].a
+        vB POD b2Vec2 = data.velocities[this.m_indexB].v
+        wB float = data.velocities[this.m_indexB].w
 
-		aC float = data.positions[this.m_indexC].a
-		vC POD b2Vec2 = data.velocities[this.m_indexC].v
-		wC float = data.velocities[this.m_indexC].w
+        aC float = data.positions[this.m_indexC].a
+        vC POD b2Vec2 = data.velocities[this.m_indexC].v
+        wC float = data.velocities[this.m_indexC].w
 
-		aD float = data.positions[this.m_indexD].a
-		vD POD b2Vec2 = data.velocities[this.m_indexD].v
-		wD float = data.velocities[this.m_indexD].w
+        aD float = data.positions[this.m_indexD].a
+        vD POD b2Vec2 = data.velocities[this.m_indexD].v
+        wD float = data.velocities[this.m_indexD].w
 
-		qA POD b2Rot = POD b2Rot(aA)
-		qB POD b2Rot = POD b2Rot(aB)
-		qC POD b2Rot = POD b2Rot(aC)
-		qD POD b2Rot = POD b2Rot(aD)
+        qA POD b2Rot = POD b2Rot(aA)
+        qB POD b2Rot = POD b2Rot(aB)
+        qC POD b2Rot = POD b2Rot(aC)
+        qD POD b2Rot = POD b2Rot(aD)
 
-		this.m_mass = 0.0f
+        this.m_mass = 0.0f
 
-		if this.m_typeA == b2JointType::e_revoluteJoint {
-			this.m_JvAC.SetZero()
-			this.m_JwA = 1.0f
-			this.m_JwC = 1.0f
-			this.m_mass += this.m_iA + this.m_iC
-		} else {
-			u POD b2Vec2 = b2Mul(qC, this.m_localAxisC)
-			rC POD b2Vec2 = b2Mul(qC, this.m_localAnchorC - this.m_lcC)
-			rA POD b2Vec2 = b2Mul(qA, this.m_localAnchorA - this.m_lcA)
-			this.m_JvAC = u
-			this.m_JwC = b2Cross(rC, u)
-			this.m_JwA = b2Cross(rA, u)
-			this.m_mass += this.m_mC + this.m_mA + this.m_iC * this.m_JwC * this.m_JwC + this.m_iA * this.m_JwA * this.m_JwA
-		}
+        if this.m_typeA == b2JointType::e_revoluteJoint {
+            this.m_JvAC.SetZero()
+            this.m_JwA = 1.0f
+            this.m_JwC = 1.0f
+            this.m_mass += this.m_iA + this.m_iC
+        } else {
+            u POD b2Vec2 = b2Mul(qC, this.m_localAxisC)
+            rC POD b2Vec2 = b2Mul(qC, this.m_localAnchorC - this.m_lcC)
+            rA POD b2Vec2 = b2Mul(qA, this.m_localAnchorA - this.m_lcA)
+            this.m_JvAC = u
+            this.m_JwC = b2Cross(rC, u)
+            this.m_JwA = b2Cross(rA, u)
+            this.m_mass += this.m_mC + this.m_mA + this.m_iC * this.m_JwC * this.m_JwC + this.m_iA * this.m_JwA * this.m_JwA
+        }
 
-		if this.m_typeB == b2JointType::e_revoluteJoint {
-			this.m_JvBD.SetZero()
-			this.m_JwB = this.m_ratio
-			this.m_JwD = this.m_ratio
-			this.m_mass += this.m_ratio * this.m_ratio * (this.m_iB + this.m_iD)
-		} else {
-			u POD b2Vec2 = b2Mul(qD, this.m_localAxisD)
-			rD POD b2Vec2 = b2Mul(qD, this.m_localAnchorD - this.m_lcD)
-			rB POD b2Vec2 = b2Mul(qB, this.m_localAnchorB - this.m_lcB)
-			this.m_JvBD = this.m_ratio * u
-			this.m_JwD = this.m_ratio * b2Cross(rD, u)
-			this.m_JwB = this.m_ratio * b2Cross(rB, u)
-			this.m_mass += this.m_ratio * this.m_ratio * (this.m_mD + this.m_mB) + this.m_iD * this.m_JwD * this.m_JwD + this.m_iB * this.m_JwB * this.m_JwB
-		}
+        if this.m_typeB == b2JointType::e_revoluteJoint {
+            this.m_JvBD.SetZero()
+            this.m_JwB = this.m_ratio
+            this.m_JwD = this.m_ratio
+            this.m_mass += this.m_ratio * this.m_ratio * (this.m_iB + this.m_iD)
+        } else {
+            u POD b2Vec2 = b2Mul(qD, this.m_localAxisD)
+            rD POD b2Vec2 = b2Mul(qD, this.m_localAnchorD - this.m_lcD)
+            rB POD b2Vec2 = b2Mul(qB, this.m_localAnchorB - this.m_lcB)
+            this.m_JvBD = this.m_ratio * u
+            this.m_JwD = this.m_ratio * b2Cross(rD, u)
+            this.m_JwB = this.m_ratio * b2Cross(rB, u)
+            this.m_mass += this.m_ratio * this.m_ratio * (this.m_mD + this.m_mB) + this.m_iD * this.m_JwD * this.m_JwD + this.m_iB * this.m_JwB * this.m_JwB
+        }
 
-		// Compute effective mass.
-		this.m_mass = this.m_mass > 0.0f ? 1.0f / this.m_mass : 0.0f
+        // Compute effective mass.
+        this.m_mass = this.m_mass > 0.0f ? 1.0f / this.m_mass : 0.0f
 
-		if data.step.warmStarting {
-			vA.AddAssign((this.m_mA * this.m_impulse) * this.m_JvAC)
-			wA += this.m_iA * this.m_impulse * this.m_JwA
-			vB.AddAssign((this.m_mB * this.m_impulse) * this.m_JvBD)
-			wB += this.m_iB * this.m_impulse * this.m_JwB
-			vC.SubtractAssign((this.m_mC * this.m_impulse) * this.m_JvAC)
-			wC -= this.m_iC * this.m_impulse * this.m_JwC
-			vD.SubtractAssign((this.m_mD * this.m_impulse) * this.m_JvBD)
-			wD -= this.m_iD * this.m_impulse * this.m_JwD
-		} else {
-			this.m_impulse = 0.0f
-		}
+        if data.step.warmStarting {
+            vA.AddAssign((this.m_mA * this.m_impulse) * this.m_JvAC)
+            wA += this.m_iA * this.m_impulse * this.m_JwA
+            vB.AddAssign((this.m_mB * this.m_impulse) * this.m_JvBD)
+            wB += this.m_iB * this.m_impulse * this.m_JwB
+            vC.SubtractAssign((this.m_mC * this.m_impulse) * this.m_JvAC)
+            wC -= this.m_iC * this.m_impulse * this.m_JwC
+            vD.SubtractAssign((this.m_mD * this.m_impulse) * this.m_JvBD)
+            wD -= this.m_iD * this.m_impulse * this.m_JwD
+        } else {
+            this.m_impulse = 0.0f
+        }
 
-		data.velocities[this.m_indexA].v = vA
-		data.velocities[this.m_indexA].w = wA
-		data.velocities[this.m_indexB].v = vB
-		data.velocities[this.m_indexB].w = wB
-		data.velocities[this.m_indexC].v = vC
-		data.velocities[this.m_indexC].w = wC
-		data.velocities[this.m_indexD].v = vD
-		data.velocities[this.m_indexD].w = wD
+        data.velocities[this.m_indexA].v = vA
+        data.velocities[this.m_indexA].w = wA
+        data.velocities[this.m_indexB].v = vB
+        data.velocities[this.m_indexB].w = wB
+        data.velocities[this.m_indexC].v = vC
+        data.velocities[this.m_indexC].w = wC
+        data.velocities[this.m_indexD].v = vD
+        data.velocities[this.m_indexD].w = wD
     }
 
     // (override)
-	func SolveVelocityConstraints(data *b2SolverData) void {
-		vA POD b2Vec2 = data.velocities[this.m_indexA].v
-		wA float = data.velocities[this.m_indexA].w
-		vB POD b2Vec2 = data.velocities[this.m_indexB].v
-		wB float = data.velocities[this.m_indexB].w
-		vC POD b2Vec2 = data.velocities[this.m_indexC].v
-		wC float = data.velocities[this.m_indexC].w
-		vD POD b2Vec2 = data.velocities[this.m_indexD].v
-		wD float = data.velocities[this.m_indexD].w
+    func SolveVelocityConstraints(data *b2SolverData) void {
+        vA POD b2Vec2 = data.velocities[this.m_indexA].v
+        wA float = data.velocities[this.m_indexA].w
+        vB POD b2Vec2 = data.velocities[this.m_indexB].v
+        wB float = data.velocities[this.m_indexB].w
+        vC POD b2Vec2 = data.velocities[this.m_indexC].v
+        wC float = data.velocities[this.m_indexC].w
+        vD POD b2Vec2 = data.velocities[this.m_indexD].v
+        wD float = data.velocities[this.m_indexD].w
 
-		Cdot float = b2Dot(this.m_JvAC, vA - vC) + b2Dot(this.m_JvBD, vB - vD)
-		Cdot += (this.m_JwA * wA - this.m_JwC * wC) + (this.m_JwB * wB - this.m_JwD * wD)
+        Cdot float = b2Dot(this.m_JvAC, vA - vC) + b2Dot(this.m_JvBD, vB - vD)
+        Cdot += (this.m_JwA * wA - this.m_JwC * wC) + (this.m_JwB * wB - this.m_JwD * wD)
 
-		impulse float = (0.0f - this.m_mass) * Cdot
-		this.m_impulse += impulse
+        impulse float = (0.0f - this.m_mass) * Cdot
+        this.m_impulse += impulse
 
-		vA.AddAssign((this.m_mA * impulse) * this.m_JvAC)
-		wA += this.m_iA * impulse * this.m_JwA
-		vB.AddAssign((this.m_mB * impulse) * this.m_JvBD)
-		wB += this.m_iB * impulse * this.m_JwB
-		vC.SubtractAssign((this.m_mC * impulse) * this.m_JvAC)
-		wC -= this.m_iC * impulse * this.m_JwC
-		vD.SubtractAssign((this.m_mD * impulse) * this.m_JvBD)
-		wD -= this.m_iD * impulse * this.m_JwD
+        vA.AddAssign((this.m_mA * impulse) * this.m_JvAC)
+        wA += this.m_iA * impulse * this.m_JwA
+        vB.AddAssign((this.m_mB * impulse) * this.m_JvBD)
+        wB += this.m_iB * impulse * this.m_JwB
+        vC.SubtractAssign((this.m_mC * impulse) * this.m_JvAC)
+        wC -= this.m_iC * impulse * this.m_JwC
+        vD.SubtractAssign((this.m_mD * impulse) * this.m_JvBD)
+        wD -= this.m_iD * impulse * this.m_JwD
 
-		data.velocities[this.m_indexA].v = vA
-		data.velocities[this.m_indexA].w = wA
-		data.velocities[this.m_indexB].v = vB
-		data.velocities[this.m_indexB].w = wB
-		data.velocities[this.m_indexC].v = vC
-		data.velocities[this.m_indexC].w = wC
-		data.velocities[this.m_indexD].v = vD
-		data.velocities[this.m_indexD].w = wD
+        data.velocities[this.m_indexA].v = vA
+        data.velocities[this.m_indexA].w = wA
+        data.velocities[this.m_indexB].v = vB
+        data.velocities[this.m_indexB].w = wB
+        data.velocities[this.m_indexC].v = vC
+        data.velocities[this.m_indexC].w = wC
+        data.velocities[this.m_indexD].v = vD
+        data.velocities[this.m_indexD].w = wD
     }
 
     // (override)
-	func SolvePositionConstraints(data *b2SolverData) bool {
-		cA POD b2Vec2 = data.positions[this.m_indexA].c
-		aA float = data.positions[this.m_indexA].a
-		cB POD b2Vec2 = data.positions[this.m_indexB].c
-		aB float = data.positions[this.m_indexB].a
-		cC POD b2Vec2 = data.positions[this.m_indexC].c
-		aC float = data.positions[this.m_indexC].a
-		cD POD b2Vec2 = data.positions[this.m_indexD].c
-		aD float = data.positions[this.m_indexD].a
+    func SolvePositionConstraints(data *b2SolverData) bool {
+        cA POD b2Vec2 = data.positions[this.m_indexA].c
+        aA float = data.positions[this.m_indexA].a
+        cB POD b2Vec2 = data.positions[this.m_indexB].c
+        aB float = data.positions[this.m_indexB].a
+        cC POD b2Vec2 = data.positions[this.m_indexC].c
+        aC float = data.positions[this.m_indexC].a
+        cD POD b2Vec2 = data.positions[this.m_indexD].c
+        aD float = data.positions[this.m_indexD].a
 
-		qA POD b2Rot = POD b2Rot(aA)
-		qB POD b2Rot = POD b2Rot(aB)
-		qC POD b2Rot = POD b2Rot(aC)
-		qD POD b2Rot = POD b2Rot(aD)
+        qA POD b2Rot = POD b2Rot(aA)
+        qB POD b2Rot = POD b2Rot(aB)
+        qC POD b2Rot = POD b2Rot(aC)
+        qD POD b2Rot = POD b2Rot(aD)
 
-		linearError float = 0.0f
+        linearError float = 0.0f
 
-		coordinateA, coordinateB float = undef
+        coordinateA, coordinateB float = undef
 
-		JvAC, JvBD POD b2Vec2 = undef;
-		JwA, JwB, JwC, JwD float = undef
-		mass float = 0.0f
+        JvAC, JvBD POD b2Vec2 = undef;
+        JwA, JwB, JwC, JwD float = undef
+        mass float = 0.0f
 
-		if this.m_typeA == b2JointType::e_revoluteJoint {
-			JvAC.SetZero()
-			JwA = 1.0f
-			JwC = 1.0f
-			mass += this.m_iA + this.m_iC
+        if this.m_typeA == b2JointType::e_revoluteJoint {
+            JvAC.SetZero()
+            JwA = 1.0f
+            JwC = 1.0f
+            mass += this.m_iA + this.m_iC
 
-			coordinateA = aA - aC - this.m_referenceAngleA
-		} else {
-			u POD b2Vec2 = b2Mul(qC, this.m_localAxisC)
-			rC POD b2Vec2 = b2Mul(qC, this.m_localAnchorC - this.m_lcC)
-			rA POD b2Vec2 = b2Mul(qA, this.m_localAnchorA - this.m_lcA)
-			JvAC = u
-			JwC = b2Cross(rC, u)
-			JwA = b2Cross(rA, u)
-			mass += this.m_mC + this.m_mA + this.m_iC * JwC * JwC + this.m_iA * JwA * JwA
+            coordinateA = aA - aC - this.m_referenceAngleA
+        } else {
+            u POD b2Vec2 = b2Mul(qC, this.m_localAxisC)
+            rC POD b2Vec2 = b2Mul(qC, this.m_localAnchorC - this.m_lcC)
+            rA POD b2Vec2 = b2Mul(qA, this.m_localAnchorA - this.m_lcA)
+            JvAC = u
+            JwC = b2Cross(rC, u)
+            JwA = b2Cross(rA, u)
+            mass += this.m_mC + this.m_mA + this.m_iC * JwC * JwC + this.m_iA * JwA * JwA
 
-			pC POD b2Vec2 = this.m_localAnchorC - this.m_lcC
-			pA POD b2Vec2 = b2MulT(qC, rA + (cA - cC))
-			coordinateA = b2Dot(pA - pC, this.m_localAxisC)
-		}
+            pC POD b2Vec2 = this.m_localAnchorC - this.m_lcC
+            pA POD b2Vec2 = b2MulT(qC, rA + (cA - cC))
+            coordinateA = b2Dot(pA - pC, this.m_localAxisC)
+        }
 
-		if this.m_typeB == b2JointType::e_revoluteJoint {
-			JvBD.SetZero()
-			JwB = this.m_ratio
-			JwD = this.m_ratio
-			mass += this.m_ratio * this.m_ratio * (this.m_iB + this.m_iD)
+        if this.m_typeB == b2JointType::e_revoluteJoint {
+            JvBD.SetZero()
+            JwB = this.m_ratio
+            JwD = this.m_ratio
+            mass += this.m_ratio * this.m_ratio * (this.m_iB + this.m_iD)
 
-			coordinateB = aB - aD - this.m_referenceAngleB
-		} else {
-			u POD b2Vec2 = b2Mul(qD, this.m_localAxisD)
-			rD POD b2Vec2 = b2Mul(qD, this.m_localAnchorD - this.m_lcD)
-			rB POD b2Vec2 = b2Mul(qB, this.m_localAnchorB - this.m_lcB)
-			JvBD = this.m_ratio * u
-			JwD = this.m_ratio * b2Cross(rD, u)
-			JwB = this.m_ratio * b2Cross(rB, u)
-			mass += this.m_ratio * this.m_ratio * (this.m_mD + this.m_mB) + this.m_iD * JwD * JwD + this.m_iB * JwB * JwB
+            coordinateB = aB - aD - this.m_referenceAngleB
+        } else {
+            u POD b2Vec2 = b2Mul(qD, this.m_localAxisD)
+            rD POD b2Vec2 = b2Mul(qD, this.m_localAnchorD - this.m_lcD)
+            rB POD b2Vec2 = b2Mul(qB, this.m_localAnchorB - this.m_lcB)
+            JvBD = this.m_ratio * u
+            JwD = this.m_ratio * b2Cross(rD, u)
+            JwB = this.m_ratio * b2Cross(rB, u)
+            mass += this.m_ratio * this.m_ratio * (this.m_mD + this.m_mB) + this.m_iD * JwD * JwD + this.m_iB * JwB * JwB
 
-			pD POD b2Vec2 = this.m_localAnchorD - this.m_lcD
-			pB POD b2Vec2 = b2MulT(qD, rB + (cB - cD))
-			coordinateB = b2Dot(pB - pD, this.m_localAxisD)
-		}
+            pD POD b2Vec2 = this.m_localAnchorD - this.m_lcD
+            pB POD b2Vec2 = b2MulT(qD, rB + (cB - cD))
+            coordinateB = b2Dot(pB - pD, this.m_localAxisD)
+        }
 
-		C float = (coordinateA + this.m_ratio * coordinateB) - this.m_constant
+        C float = (coordinateA + this.m_ratio * coordinateB) - this.m_constant
 
-		impulse float = 0.0f
-		if mass > 0.0f {
-			impulse = (0.0f - C) / mass
-		}
+        impulse float = 0.0f
+        if mass > 0.0f {
+            impulse = (0.0f - C) / mass
+        }
 
-		cA.AddAssign(this.m_mA * impulse * JvAC)
-		aA += this.m_iA * impulse * JwA
-		cB.AddAssign(this.m_mB * impulse * JvBD)
-		aB += this.m_iB * impulse * JwB
-		cC.SubtractAssign(this.m_mC * impulse * JvAC)
-		aC -= this.m_iC * impulse * JwC
-		cD.SubtractAssign(this.m_mD * impulse * JvBD)
-		aD -= this.m_iD * impulse * JwD
+        cA.AddAssign(this.m_mA * impulse * JvAC)
+        aA += this.m_iA * impulse * JwA
+        cB.AddAssign(this.m_mB * impulse * JvBD)
+        aB += this.m_iB * impulse * JwB
+        cC.SubtractAssign(this.m_mC * impulse * JvAC)
+        aC -= this.m_iC * impulse * JwC
+        cD.SubtractAssign(this.m_mD * impulse * JvBD)
+        aD -= this.m_iD * impulse * JwD
 
-		data.positions[this.m_indexA].c = cA
-		data.positions[this.m_indexA].a = aA
-		data.positions[this.m_indexB].c = cB
-		data.positions[this.m_indexB].a = aB
-		data.positions[this.m_indexC].c = cC
-		data.positions[this.m_indexC].a = aC
-		data.positions[this.m_indexD].c = cD
-		data.positions[this.m_indexD].a = aD
+        data.positions[this.m_indexA].c = cA
+        data.positions[this.m_indexA].a = aA
+        data.positions[this.m_indexB].c = cB
+        data.positions[this.m_indexB].a = aB
+        data.positions[this.m_indexC].c = cC
+        data.positions[this.m_indexC].a = aC
+        data.positions[this.m_indexD].c = cD
+        data.positions[this.m_indexD].a = aD
 
-		// TODO_ERIN not implemented
-		return linearError < b2_linearSlop
+        // TODO_ERIN not implemented
+        return linearError < b2_linearSlop
     }
 }
 
@@ -418,84 +418,84 @@ func b2Joint\CreateRaw\b2GearJoint(out uninitialized *b2GearJoint, in data *b2Ge
     b2Joint(uninitialized, data as *b2JointDef)
 
     uninitialized.m_joint1 = data.joint1
-	uninitialized.m_joint2 = data.joint2
+    uninitialized.m_joint2 = data.joint2
 
-	uninitialized.m_typeA = uninitialized.m_joint1.GetType()
-	uninitialized.m_typeB = uninitialized.m_joint2.GetType()
+    uninitialized.m_typeA = uninitialized.m_joint1.GetType()
+    uninitialized.m_typeB = uninitialized.m_joint2.GetType()
 
-	b2Assert(uninitialized.m_typeA == b2JointType::e_revoluteJoint || uninitialized.m_typeA == b2JointType::e_prismaticJoint)
-	b2Assert(uninitialized.m_typeB == b2JointType::e_revoluteJoint || uninitialized.m_typeB == b2JointType::e_prismaticJoint)
+    b2Assert(uninitialized.m_typeA == b2JointType::e_revoluteJoint || uninitialized.m_typeA == b2JointType::e_prismaticJoint, #get __file__, #get __line__, 'b2Assert(uninitialized.m_typeA == b2JointType::e_revoluteJoint || uninitialized.m_typeA == b2JointType::e_prismaticJoint)')
+    b2Assert(uninitialized.m_typeB == b2JointType::e_revoluteJoint || uninitialized.m_typeB == b2JointType::e_prismaticJoint, #get __file__, #get __line__, 'b2Assert(uninitialized.m_typeB == b2JointType::e_revoluteJoint || uninitialized.m_typeB == b2JointType::e_prismaticJoint)')
 
-	coordinateA, coordinateB float = undef
+    coordinateA, coordinateB float = undef
 
-	// TODO_ERIN there might be some problem with the joint edges in b2Joint.
+    // TODO_ERIN there might be some problem with the joint edges in b2Joint.
 
-	uninitialized.m_bodyC = uninitialized.m_joint1.GetBodyA()
-	uninitialized.m_bodyA = uninitialized.m_joint1.GetBodyB()
+    uninitialized.m_bodyC = uninitialized.m_joint1.GetBodyA()
+    uninitialized.m_bodyA = uninitialized.m_joint1.GetBodyB()
 
-	// Body B on joint1 must be dynamic
-	b2Assert(uninitialized.m_bodyA.m_type == b2_dynamicBody)
+    // Body B on joint1 must be dynamic
+    b2Assert(uninitialized.m_bodyA.m_type == b2_dynamicBody, #get __file__, #get __line__, 'b2Assert(uninitialized.m_bodyA.m_type == b2_dynamicBody)')
 
-	// Get geometry of joint1
-	xfA POD b2Transform = uninitialized.m_bodyA.m_xf
-	aA float = uninitialized.m_bodyA.m_sweep.a
-	xfC POD b2Transform = uninitialized.m_bodyC.m_xf
-	aC float = uninitialized.m_bodyC.m_sweep.a
+    // Get geometry of joint1
+    xfA POD b2Transform = uninitialized.m_bodyA.m_xf
+    aA float = uninitialized.m_bodyA.m_sweep.a
+    xfC POD b2Transform = uninitialized.m_bodyC.m_xf
+    aC float = uninitialized.m_bodyC.m_sweep.a
 
-	if uninitialized.m_typeA == b2JointType::e_revoluteJoint {
-		revolute *b2RevoluteJoint = data.joint1 as *b2RevoluteJoint
-		uninitialized.m_localAnchorC = revolute.m_localAnchorA
-		uninitialized.m_localAnchorA = revolute.m_localAnchorB
-		uninitialized.m_referenceAngleA = revolute.m_referenceAngle
-		uninitialized.m_localAxisC.SetZero()
+    if uninitialized.m_typeA == b2JointType::e_revoluteJoint {
+        revolute *b2RevoluteJoint = data.joint1 as *b2RevoluteJoint
+        uninitialized.m_localAnchorC = revolute.m_localAnchorA
+        uninitialized.m_localAnchorA = revolute.m_localAnchorB
+        uninitialized.m_referenceAngleA = revolute.m_referenceAngle
+        uninitialized.m_localAxisC.SetZero()
 
-		coordinateA = aA - aC - uninitialized.m_referenceAngleA
-	} else {
-		prismatic *b2PrismaticJoint = data.joint1 as *b2PrismaticJoint
-		uninitialized.m_localAnchorC = prismatic.m_localAnchorA
-		uninitialized.m_localAnchorA = prismatic.m_localAnchorB
-		uninitialized.m_referenceAngleA = prismatic.m_referenceAngle
-		uninitialized.m_localAxisC = prismatic.m_localXAxisA
+        coordinateA = aA - aC - uninitialized.m_referenceAngleA
+    } else {
+        prismatic *b2PrismaticJoint = data.joint1 as *b2PrismaticJoint
+        uninitialized.m_localAnchorC = prismatic.m_localAnchorA
+        uninitialized.m_localAnchorA = prismatic.m_localAnchorB
+        uninitialized.m_referenceAngleA = prismatic.m_referenceAngle
+        uninitialized.m_localAxisC = prismatic.m_localXAxisA
 
-		pC POD b2Vec2 = uninitialized.m_localAnchorC
-		pA POD b2Vec2 = b2MulT(xfC.q, b2Mul(xfA.q, uninitialized.m_localAnchorA) + (xfA.p - xfC.p))
-		coordinateA = b2Dot(pA - pC, uninitialized.m_localAxisC)
-	}
+        pC POD b2Vec2 = uninitialized.m_localAnchorC
+        pA POD b2Vec2 = b2MulT(xfC.q, b2Mul(xfA.q, uninitialized.m_localAnchorA) + (xfA.p - xfC.p))
+        coordinateA = b2Dot(pA - pC, uninitialized.m_localAxisC)
+    }
 
-	uninitialized.m_bodyD = uninitialized.m_joint2.GetBodyA()
-	uninitialized.m_bodyB = uninitialized.m_joint2.GetBodyB()
+    uninitialized.m_bodyD = uninitialized.m_joint2.GetBodyA()
+    uninitialized.m_bodyB = uninitialized.m_joint2.GetBodyB()
 
-	// Body B on joint2 must be dynamic
-	b2Assert(uninitialized.m_bodyB.m_type == b2_dynamicBody)
+    // Body B on joint2 must be dynamic
+    b2Assert(uninitialized.m_bodyB.m_type == b2_dynamicBody, #get __file__, #get __line__, 'b2Assert(uninitialized.m_bodyB.m_type == b2_dynamicBody)')
 
-	// Get geometry of joint2
-	xfB POD b2Transform = uninitialized.m_bodyB.m_xf
-	aB float = uninitialized.m_bodyB.m_sweep.a
-	xfD POD b2Transform = uninitialized.m_bodyD.m_xf
-	aD float = uninitialized.m_bodyD.m_sweep.a
+    // Get geometry of joint2
+    xfB POD b2Transform = uninitialized.m_bodyB.m_xf
+    aB float = uninitialized.m_bodyB.m_sweep.a
+    xfD POD b2Transform = uninitialized.m_bodyD.m_xf
+    aD float = uninitialized.m_bodyD.m_sweep.a
 
-	if uninitialized.m_typeB == b2JointType::e_revoluteJoint {
-		revolute *b2RevoluteJoint = data.joint2 as *b2RevoluteJoint
-		uninitialized.m_localAnchorD = revolute.m_localAnchorA
-		uninitialized.m_localAnchorB = revolute.m_localAnchorB
-		uninitialized.m_referenceAngleB = revolute.m_referenceAngle
-		uninitialized.m_localAxisD.SetZero()
+    if uninitialized.m_typeB == b2JointType::e_revoluteJoint {
+        revolute *b2RevoluteJoint = data.joint2 as *b2RevoluteJoint
+        uninitialized.m_localAnchorD = revolute.m_localAnchorA
+        uninitialized.m_localAnchorB = revolute.m_localAnchorB
+        uninitialized.m_referenceAngleB = revolute.m_referenceAngle
+        uninitialized.m_localAxisD.SetZero()
 
-		coordinateB = aB - aD - uninitialized.m_referenceAngleB
-	} else {
-		prismatic *b2PrismaticJoint = data.joint2 as *b2PrismaticJoint
-		uninitialized.m_localAnchorD = prismatic.m_localAnchorA
-		uninitialized.m_localAnchorB = prismatic.m_localAnchorB
-		uninitialized.m_referenceAngleB = prismatic.m_referenceAngle
-		uninitialized.m_localAxisD = prismatic.m_localXAxisA
+        coordinateB = aB - aD - uninitialized.m_referenceAngleB
+    } else {
+        prismatic *b2PrismaticJoint = data.joint2 as *b2PrismaticJoint
+        uninitialized.m_localAnchorD = prismatic.m_localAnchorA
+        uninitialized.m_localAnchorB = prismatic.m_localAnchorB
+        uninitialized.m_referenceAngleB = prismatic.m_referenceAngle
+        uninitialized.m_localAxisD = prismatic.m_localXAxisA
 
-		pD POD b2Vec2 = uninitialized.m_localAnchorD
-		pB POD b2Vec2 = b2MulT(xfD.q, b2Mul(xfB.q, uninitialized.m_localAnchorB) + (xfB.p - xfD.p))
-		coordinateB = b2Dot(pB - pD, uninitialized.m_localAxisD)
-	}
+        pD POD b2Vec2 = uninitialized.m_localAnchorD
+        pB POD b2Vec2 = b2MulT(xfD.q, b2Mul(xfB.q, uninitialized.m_localAnchorB) + (xfB.p - xfD.p))
+        coordinateB = b2Dot(pB - pD, uninitialized.m_localAxisD)
+    }
 
-	uninitialized.m_ratio = data.ratio
-	uninitialized.m_constant = coordinateA + coordinateB * uninitialized.m_ratio
-	uninitialized.m_impulse = 0.0f
-	return uninitialized
+    uninitialized.m_ratio = data.ratio
+    uninitialized.m_constant = coordinateA + coordinateB * uninitialized.m_ratio
+    uninitialized.m_impulse = 0.0f
+    return uninitialized
 }

@@ -38,19 +38,19 @@ struct b2MouseJointDef (
     struct b2JointDef,
 
     /// The initial world target point. This is assumed
-	/// to coincide with the body anchor initially.
-	target b2Vec2,
+    /// to coincide with the body anchor initially.
+    target b2Vec2,
 
-	/// The maximum constraint force that can be exerted
-	/// to move the candidate body. Usually you will express
-	/// as some multiple of the weight (multiplier * mass * gravity).
-	maxForce float,
+    /// The maximum constraint force that can be exerted
+    /// to move the candidate body. Usually you will express
+    /// as some multiple of the weight (multiplier * mass * gravity).
+    maxForce float,
 
-	/// The linear stiffness in N/m
-	stiffness float,
+    /// The linear stiffness in N/m
+    stiffness float,
 
-	/// The linear damping in N*s/m
-	damping float
+    /// The linear damping in N*s/m
+    damping float
 )
 
 func b2MouseJointDef() b2MouseJointDef {
@@ -75,167 +75,167 @@ struct b2MouseJoint (
     struct b2Joint,
 
     m_localAnchorB b2Vec2,
-	m_targetA b2Vec2,
-	m_stiffness float,
-	m_damping float,
-	m_beta float,
+    m_targetA b2Vec2,
+    m_stiffness float,
+    m_damping float,
+    m_beta float,
 
-	// Solver shared
-	m_impulse b2Vec2,
-	m_maxForce float,
-	m_gamma float,
+    // Solver shared
+    m_impulse b2Vec2,
+    m_maxForce float,
+    m_gamma float,
 
-	// Solver temp
-	m_indexA int,
-	m_indexB int,
-	m_rB b2Vec2,
-	m_localCenterB b2Vec2,
-	m_invMassB float,
-	m_invIB float,
-	m_mass b2Mat22,
-	m_C b2Vec2
+    // Solver temp
+    m_indexA int,
+    m_indexB int,
+    m_rB b2Vec2,
+    m_localCenterB b2Vec2,
+    m_invMassB float,
+    m_invIB float,
+    m_mass b2Mat22,
+    m_C b2Vec2
 ) {
     /// Implements b2Joint.
     // (override)
-	func GetAnchorA() b2Vec2 { return this.m_targetA; }
+    func GetAnchorA() b2Vec2 { return this.m_targetA; }
 
-	/// Implements b2Joint.
+    /// Implements b2Joint.
     // (override)
-	func GetAnchorB() b2Vec2 { return this.m_bodyB.GetWorldPoint(&this.m_localAnchorB); }
+    func GetAnchorB() b2Vec2 { return this.m_bodyB.GetWorldPoint(&this.m_localAnchorB); }
 
-	/// Implements b2Joint.
+    /// Implements b2Joint.
     // (override)
-	func GetReactionForce(inv_dt float) b2Vec2 { return inv_dt * this.m_impulse; }
+    func GetReactionForce(inv_dt float) b2Vec2 { return inv_dt * this.m_impulse; }
 
-	/// Implements b2Joint.
+    /// Implements b2Joint.
     // (override)
-	func GetReactionTorque(inv_dt float) float { return inv_dt * 0.0f; }
+    func GetReactionTorque(inv_dt float) float { return inv_dt * 0.0f; }
 
-	/// Use this to update the target point.
-	func SetTarget(in target POD b2Vec2) { this.SetTarget(&target); }
-	func SetTarget(in target *b2Vec2) void {
-		if *target != this.m_targetA {
-			this.m_bodyB.SetAwake(true)
-			this.m_targetA = *target
-		}
+    /// Use this to update the target point.
+    func SetTarget(in target POD b2Vec2) { this.SetTarget(&target); }
+    func SetTarget(in target *b2Vec2) void {
+        if *target != this.m_targetA {
+            this.m_bodyB.SetAwake(true)
+            this.m_targetA = *target
+        }
     }
 
-	func GetTarget() *b2Vec2 { return &this.m_targetA; }
+    func GetTarget() *b2Vec2 { return &this.m_targetA; }
 
-	/// Set/get the maximum force in Newtons.
-	func SetMaxForce(force float) void { this.m_maxForce = force; }
+    /// Set/get the maximum force in Newtons.
+    func SetMaxForce(force float) void { this.m_maxForce = force; }
 
-	func GetMaxForce() float { return this.m_maxForce; }
+    func GetMaxForce() float { return this.m_maxForce; }
 
-	/// Set/get the linear stiffness in N/m
-	func SetStiffness(stiffness float) void { this.m_stiffness = stiffness; }
-	func GetStiffness() float { return this.m_stiffness; }
+    /// Set/get the linear stiffness in N/m
+    func SetStiffness(stiffness float) void { this.m_stiffness = stiffness; }
+    func GetStiffness() float { return this.m_stiffness; }
 
-	/// Set/get linear damping in N*s/m
-	func SetDamping(damping float) void { this.m_damping = damping; }
-	func GetDamping() float { return this.m_damping; }
+    /// Set/get linear damping in N*s/m
+    func SetDamping(damping float) void { this.m_damping = damping; }
+    func GetDamping() float { return this.m_damping; }
 
-	/// The mouse joint does not support dumping.
+    /// The mouse joint does not support dumping.
     // (override)
-	func Dump() void { b2Log('Mouse joint dumping is not supported.\n'); }
+    func Dump() void { b2Log('Mouse joint dumping is not supported.\n'); }
 
-	/// Implement b2Joint::ShiftOrigin
+    /// Implement b2Joint::ShiftOrigin
     // (override)
-	func ShiftOrigin(in newOrigin *b2Vec2) void { this.m_targetA.SubtractAssign(*newOrigin); }
+    func ShiftOrigin(in newOrigin *b2Vec2) void { this.m_targetA.SubtractAssign(*newOrigin); }
 
     // --------------------------------------------------------
 
     // (override)
     func InitVelocityConstraints(in data *b2SolverData) void {
-		this.m_indexB = this.m_bodyB.m_islandIndex
-		this.m_localCenterB = this.m_bodyB.m_sweep.localCenter
-		this.m_invMassB = this.m_bodyB.m_invMass
-		this.m_invIB = this.m_bodyB.m_invI
+        this.m_indexB = this.m_bodyB.m_islandIndex
+        this.m_localCenterB = this.m_bodyB.m_sweep.localCenter
+        this.m_invMassB = this.m_bodyB.m_invMass
+        this.m_invIB = this.m_bodyB.m_invI
 
-		cB POD b2Vec2 = data.positions[this.m_indexB].c
-		aB float = data.positions[this.m_indexB].a
-		vB POD b2Vec2 = data.velocities[this.m_indexB].v
-		wB float = data.velocities[this.m_indexB].w
+        cB POD b2Vec2 = data.positions[this.m_indexB].c
+        aB float = data.positions[this.m_indexB].a
+        vB POD b2Vec2 = data.velocities[this.m_indexB].v
+        wB float = data.velocities[this.m_indexB].w
 
-		qB POD b2Rot = POD b2Rot(aB)
+        qB POD b2Rot = POD b2Rot(aB)
 
-		_mass float = this.m_bodyB.GetMass() // (unused)
+        _mass float = this.m_bodyB.GetMass() // (unused)
 
-		d float = this.m_damping
-		k float = this.m_stiffness
+        d float = this.m_damping
+        k float = this.m_stiffness
 
-		// magic formulas
-		// gamma has units of inverse mass.
-		// beta has units of inverse time.
-		h float = data.step.dt
-		this.m_gamma = h * (d + h * k)
-		if this.m_gamma != 0.0f {
-			this.m_gamma = 1.0f / this.m_gamma
-		}
-		this.m_beta = h * k * this.m_gamma
+        // magic formulas
+        // gamma has units of inverse mass.
+        // beta has units of inverse time.
+        h float = data.step.dt
+        this.m_gamma = h * (d + h * k)
+        if this.m_gamma != 0.0f {
+            this.m_gamma = 1.0f / this.m_gamma
+        }
+        this.m_beta = h * k * this.m_gamma
 
-		// Compute the effective mass matrix.
-		this.m_rB = b2Mul(qB, this.m_localAnchorB - this.m_localCenterB)
+        // Compute the effective mass matrix.
+        this.m_rB = b2Mul(qB, this.m_localAnchorB - this.m_localCenterB)
 
-		// K    = [(1/m1 + 1/m2) * eye(2) - skew(r1) * invI1 * skew(r1) - skew(r2) * invI2 * skew(r2)]
-		//      = [1/m1+1/m2     0    ] + invI1 * [r1.y*r1.y -r1.x*r1.y] + invI2 * [r1.y*r1.y -r1.x*r1.y]
-		//        [    0     1/m1+1/m2]           [-r1.x*r1.y r1.x*r1.x]           [-r1.x*r1.y r1.x*r1.x]
-		K POD b2Mat22 = undef
-		K.ex.x = this.m_invMassB + this.m_invIB * this.m_rB.y * this.m_rB.y + this.m_gamma
-		K.ex.y = (0.0f - this.m_invIB) * this.m_rB.x * this.m_rB.y
-		K.ey.x = K.ex.y
-		K.ey.y = this.m_invMassB + this.m_invIB * this.m_rB.x * this.m_rB.x + this.m_gamma
+        // K    = [(1/m1 + 1/m2) * eye(2) - skew(r1) * invI1 * skew(r1) - skew(r2) * invI2 * skew(r2)]
+        //      = [1/m1+1/m2     0    ] + invI1 * [r1.y*r1.y -r1.x*r1.y] + invI2 * [r1.y*r1.y -r1.x*r1.y]
+        //        [    0     1/m1+1/m2]           [-r1.x*r1.y r1.x*r1.x]           [-r1.x*r1.y r1.x*r1.x]
+        K POD b2Mat22 = undef
+        K.ex.x = this.m_invMassB + this.m_invIB * this.m_rB.y * this.m_rB.y + this.m_gamma
+        K.ex.y = (0.0f - this.m_invIB) * this.m_rB.x * this.m_rB.y
+        K.ey.x = K.ex.y
+        K.ey.y = this.m_invMassB + this.m_invIB * this.m_rB.x * this.m_rB.x + this.m_gamma
 
-		this.m_mass = K.GetInverse()
+        this.m_mass = K.GetInverse()
 
-		this.m_C = cB + this.m_rB - this.m_targetA
-		this.m_C.MultiplyAssign(this.m_beta)
+        this.m_C = cB + this.m_rB - this.m_targetA
+        this.m_C.MultiplyAssign(this.m_beta)
 
-		// Cheat with some damping
-		wB *= 0.98f
+        // Cheat with some damping
+        wB *= 0.98f
 
-		if data.step.warmStarting {
-			this.m_impulse.MultiplyAssign(data.step.dtRatio)
-			vB.AddAssign(this.m_invMassB * this.m_impulse)
-			wB += this.m_invIB * b2Cross(this.m_rB, this.m_impulse)
-		} else {
-			this.m_impulse.SetZero()
-		}
+        if data.step.warmStarting {
+            this.m_impulse.MultiplyAssign(data.step.dtRatio)
+            vB.AddAssign(this.m_invMassB * this.m_impulse)
+            wB += this.m_invIB * b2Cross(this.m_rB, this.m_impulse)
+        } else {
+            this.m_impulse.SetZero()
+        }
 
-		data.velocities[this.m_indexB].v = vB
-		data.velocities[this.m_indexB].w = wB
+        data.velocities[this.m_indexB].v = vB
+        data.velocities[this.m_indexB].w = wB
     }
 
     // (override)
     func SolveVelocityConstraints(in data *b2SolverData) void {
-		vB POD b2Vec2 = data.velocities[this.m_indexB].v
-		wB float = data.velocities[this.m_indexB].w
+        vB POD b2Vec2 = data.velocities[this.m_indexB].v
+        wB float = data.velocities[this.m_indexB].w
 
-		// Cdot = v + cross(w, r)
-		Cdot POD b2Vec2 = vB + b2Cross(wB, this.m_rB)
-		impulse POD b2Vec2 = b2Mul(this.m_mass, (Cdot + this.m_C + this.m_gamma * this.m_impulse).Negated())
+        // Cdot = v + cross(w, r)
+        Cdot POD b2Vec2 = vB + b2Cross(wB, this.m_rB)
+        impulse POD b2Vec2 = b2Mul(this.m_mass, (Cdot + this.m_C + this.m_gamma * this.m_impulse).Negated())
 
-		oldImpulse POD b2Vec2 = this.m_impulse
-		this.m_impulse.AddAssign(impulse)
+        oldImpulse POD b2Vec2 = this.m_impulse
+        this.m_impulse.AddAssign(impulse)
 
-		maxImpulse float = data.step.dt * this.m_maxForce
+        maxImpulse float = data.step.dt * this.m_maxForce
 
-		if this.m_impulse.LengthSquared() > maxImpulse * maxImpulse {
-			this.m_impulse = this.m_impulse * (maxImpulse / this.m_impulse.Length())
-		}
-		impulse = this.m_impulse - oldImpulse
+        if this.m_impulse.LengthSquared() > maxImpulse * maxImpulse {
+            this.m_impulse = this.m_impulse * (maxImpulse / this.m_impulse.Length())
+        }
+        impulse = this.m_impulse - oldImpulse
 
-		vB.AddAssign(this.m_invMassB * impulse)
-		wB += this.m_invIB * b2Cross(this.m_rB, impulse)
+        vB.AddAssign(this.m_invMassB * impulse)
+        wB += this.m_invIB * b2Cross(this.m_rB, impulse)
 
-		data.velocities[this.m_indexB].v = vB
-		data.velocities[this.m_indexB].w = wB
+        data.velocities[this.m_indexB].v = vB
+        data.velocities[this.m_indexB].w = wB
     }
 
     // (override)
     func SolvePositionConstraints(in _data *b2SolverData) bool {
-		// (unused)
-		return true
+        // (unused)
+        return true
     }
 }
 
@@ -243,13 +243,13 @@ func b2Joint\CreateRaw\b2MouseJoint(out uninitialized *b2MouseJoint, in definiti
     b2Joint(uninitialized, definition as *b2JointDef)
 
     uninitialized.m_targetA = definition.target
-	uninitialized.m_localAnchorB = b2MulT(uninitialized.m_bodyB.GetTransform(), uninitialized.m_targetA)
-	uninitialized.m_maxForce = definition.maxForce
-	uninitialized.m_stiffness = definition.stiffness
-	uninitialized.m_damping = definition.damping
+    uninitialized.m_localAnchorB = b2MulT(uninitialized.m_bodyB.GetTransform(), uninitialized.m_targetA)
+    uninitialized.m_maxForce = definition.maxForce
+    uninitialized.m_stiffness = definition.stiffness
+    uninitialized.m_damping = definition.damping
 
-	uninitialized.m_impulse.SetZero()
-	uninitialized.m_beta = 0.0f
-	uninitialized.m_gamma = 0.0f
+    uninitialized.m_impulse.SetZero()
+    uninitialized.m_beta = 0.0f
+    uninitialized.m_gamma = 0.0f
     return uninitialized
 }

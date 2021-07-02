@@ -41,24 +41,24 @@ struct b2FrictionJointDef (
     struct b2JointDef,
 
     /// The local anchor point relative to bodyA's origin.
-	localAnchorA b2Vec2,
+    localAnchorA b2Vec2,
 
-	/// The local anchor point relative to bodyB's origin.
-	localAnchorB b2Vec2,
+    /// The local anchor point relative to bodyB's origin.
+    localAnchorB b2Vec2,
 
-	/// The maximum friction force in N.
-	maxForce float,
+    /// The maximum friction force in N.
+    maxForce float,
 
-	/// The maximum friction torque in N-m.
-	maxTorque float
+    /// The maximum friction torque in N-m.
+    maxTorque float
 ) {
     /// Initialize the bodies, anchors, axis, and reference angle using the world
-	/// anchor and world axis.
-	func Initialize(bA, bB *b2Body, in anchor *b2Vec2) void {
+    /// anchor and world axis.
+    func Initialize(bA, bB *b2Body, in anchor *b2Vec2) void {
         this.bodyA = bA
-	    this.bodyB = bB
-	    this.localAnchorA = bA.GetLocalPoint(anchor)
-	    this.localAnchorB = bB.GetLocalPoint(anchor)
+        this.bodyB = bB
+        this.localAnchorA = bA.GetLocalPoint(anchor)
+        this.localAnchorB = bB.GetLocalPoint(anchor)
     }
 }
 
@@ -77,27 +77,27 @@ struct b2FrictionJoint (
     struct b2Joint,
 
     m_localAnchorA b2Vec2,
-	m_localAnchorB b2Vec2,
+    m_localAnchorB b2Vec2,
 
-	// Solver shared
-	m_linearImpulse b2Vec2,
-	m_angularImpulse float,
-	m_maxForce float,
-	m_maxTorque float,
+    // Solver shared
+    m_linearImpulse b2Vec2,
+    m_angularImpulse float,
+    m_maxForce float,
+    m_maxTorque float,
 
-	// Solver temp
-	m_indexA int,
-	m_indexB int,
-	m_rA b2Vec2,
-	m_rB b2Vec2,
-	m_localCenterA b2Vec2,
-	m_localCenterB b2Vec2,
-	m_invMassA float,
-	m_invMassB float,
-	m_invIA float,
-	m_invIB float,
-	m_linearMass b2Mat22,
-	m_angularMass float
+    // Solver temp
+    m_indexA int,
+    m_indexB int,
+    m_rA b2Vec2,
+    m_rB b2Vec2,
+    m_localCenterA b2Vec2,
+    m_localCenterB b2Vec2,
+    m_invMassA float,
+    m_invMassB float,
+    m_invIA float,
+    m_invIB float,
+    m_linearMass b2Mat22,
+    m_angularMass float
 ) {
     // (override)
     func GetAnchorA() b2Vec2 {
@@ -110,50 +110,50 @@ struct b2FrictionJoint (
     }
 
     // (override)
-	func GetReactionForce(inv_dt float) b2Vec2 {
+    func GetReactionForce(inv_dt float) b2Vec2 {
         return inv_dt * this.m_linearImpulse
     }
 
-	// (override)
-	func GetReactionTorque(inv_dt float) float {
+    // (override)
+    func GetReactionTorque(inv_dt float) float {
         return inv_dt * this.m_angularImpulse
     }
 
-	/// The local anchor point relative to bodyA's origin.
-	func GetLocalAnchorA() *b2Vec2 {
+    /// The local anchor point relative to bodyA's origin.
+    func GetLocalAnchorA() *b2Vec2 {
         return &this.m_localAnchorA
     }
 
-	/// The local anchor point relative to bodyB's origin.
-	func GetLocalAnchorB() *b2Vec2 {
+    /// The local anchor point relative to bodyB's origin.
+    func GetLocalAnchorB() *b2Vec2 {
         return &this.m_localAnchorB
     }
 
-	/// Set the maximum friction force in N.
-	func SetMaxForce(force float) void {
-        b2Assert(b2IsValid(force) && force >= 0.0f)
-	    this.m_maxForce = force
+    /// Set the maximum friction force in N.
+    func SetMaxForce(force float) void {
+        b2Assert(b2IsValid(force, #get __file__, #get __line__, 'b2Assert(b2IsValid(force)') && force >= 0.0f)
+        this.m_maxForce = force
     }
 
-	/// Get the maximum friction force in N.
-	func GetMaxForce() float {
+    /// Get the maximum friction force in N.
+    func GetMaxForce() float {
         return this.m_maxForce
     }
 
-	/// Set the maximum friction torque in N*m.
-	func SetMaxTorque(torque float) void {
-        b2Assert(b2IsValid(torque) && torque >= 0.0f)
-	    this.m_maxTorque = torque
+    /// Set the maximum friction torque in N*m.
+    func SetMaxTorque(torque float) void {
+        b2Assert(b2IsValid(torque, #get __file__, #get __line__, 'b2Assert(b2IsValid(torque)') && torque >= 0.0f)
+        this.m_maxTorque = torque
     }
 
-	/// Get the maximum friction torque in N*m.
-	func GetMaxTorque() float {
+    /// Get the maximum friction torque in N*m.
+    func GetMaxTorque() float {
         return this.m_maxTorque
     }
 
-	/// Dump joint to dmLog
-	// (override)
-	func Dump() void {
+    /// Dump joint to dmLog
+    // (override)
+    func Dump() void {
         indexA int = this.m_bodyA.m_islandIndex
         indexB int = this.m_bodyB.m_islandIndex
 
@@ -170,7 +170,7 @@ struct b2FrictionJoint (
 
     // --------------------------------------------------------
 
-	// (override)
+    // (override)
     func InitVelocityConstraints(data *b2SolverData) void {
         this.m_indexA = this.m_bodyA.m_islandIndex
         this.m_indexB = this.m_bodyB.m_islandIndex
@@ -244,8 +244,8 @@ struct b2FrictionJoint (
         data.velocities[this.m_indexB].w = wB
     }
 
-	// (override)
-	func SolveVelocityConstraints(data *b2SolverData) void {
+    // (override)
+    func SolveVelocityConstraints(data *b2SolverData) void {
         vA POD b2Vec2 = data.velocities[this.m_indexA].v
         wA float = data.velocities[this.m_indexA].w
         vB POD b2Vec2 = data.velocities[this.m_indexB].v
@@ -302,8 +302,8 @@ struct b2FrictionJoint (
         data.velocities[this.m_indexB].w = wB
     }
 
-	// (override)
-	func SolvePositionConstraints(_data *b2SolverData) bool {
+    // (override)
+    func SolvePositionConstraints(_data *b2SolverData) bool {
         /* do nothing */
         return true
     }
@@ -313,13 +313,13 @@ func b2Joint\CreateRaw\b2FrictionJoint(out uninitialized *b2FrictionJoint, in de
     b2Joint(uninitialized, definition as *b2JointDef)
 
     uninitialized.m_localAnchorA = definition.localAnchorA
-	uninitialized.m_localAnchorB = definition.localAnchorB
+    uninitialized.m_localAnchorB = definition.localAnchorB
 
-	uninitialized.m_linearImpulse.SetZero()
-	uninitialized.m_angularImpulse = 0.0f
+    uninitialized.m_linearImpulse.SetZero()
+    uninitialized.m_angularImpulse = 0.0f
 
-	uninitialized.m_maxForce = definition.maxForce
-	uninitialized.m_maxTorque = definition.maxTorque
+    uninitialized.m_maxForce = definition.maxForce
+    uninitialized.m_maxTorque = definition.maxTorque
 
     return uninitialized
 }

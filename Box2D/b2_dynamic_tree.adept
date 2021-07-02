@@ -35,19 +35,19 @@ define b2_nullNode = -1
 /// A node in the dynamic tree. The client does not interact with this directly.
 struct b2TreeNode (
     /// Enlarged AABB
-	aabb b2AABB,
+    aabb b2AABB,
 
-	userData ptr,
+    userData ptr,
 
-	union(parent, next int),
+    union(parent, next int),
 
-	child1 int,
-	child2 int,
+    child1 int,
+    child2 int,
 
-	// leaf = 0, free node = -1
-	height int,
+    // leaf = 0, free node = -1
+    height int,
 
-	moved bool
+    moved bool
 ) {
     func IsLeaf() bool { return this.child1 == b2_nullNode; }
 }
@@ -63,21 +63,21 @@ struct b2TreeNode (
 struct b2DynamicTree (
     m_root int,
 
-	m_nodes *b2TreeNode,
-	m_nodeCount int,
-	m_nodeCapacity int,
+    m_nodes *b2TreeNode,
+    m_nodeCount int,
+    m_nodeCapacity int,
 
-	m_freeList int,
+    m_freeList int,
 
-	m_insertionCount int
+    m_insertionCount int
 ) {
     func __defer__ {
         // This frees the entire tree in one shot.
-	    b2Free(this.m_nodes)
+        b2Free(this.m_nodes)
     }
 
     /// Create a proxy. Provide a tight fitting AABB and a userData pointer.
-	func CreateProxy(in aabb *b2AABB, userData ptr) int {
+    func CreateProxy(in aabb *b2AABB, userData ptr) int {
         // Create a proxy in the tree as a leaf node. We return the index
         // of the node instead of a pointer so that we can grow
         // the node pool.
@@ -97,23 +97,23 @@ struct b2DynamicTree (
         return proxyId
     }
 
-	/// Destroy a proxy. This asserts if the id is invalid.
-	func DestroyProxy(proxyId int) void {
-        b2Assert(0 <= proxyId && proxyId < this.m_nodeCapacity)
-        b2Assert(this.m_nodes[proxyId].IsLeaf())
+    /// Destroy a proxy. This asserts if the id is invalid.
+    func DestroyProxy(proxyId int) void {
+        b2Assert(0 <= proxyId && proxyId < this.m_nodeCapacity, #get __file__, #get __line__, 'b2Assert(0 <= proxyId && proxyId < this.m_nodeCapacity)')
+        b2Assert(this.m_nodes[proxyId].IsLeaf(, #get __file__, #get __line__, 'b2Assert(this.m_nodes[proxyId].IsLeaf()'))
 
         this.RemoveLeaf(proxyId)
         this.FreeNode(proxyId)
     }
 
-	/// Move a proxy with a swepted AABB. If the proxy has moved outside of its fattened AABB,
-	/// then the proxy is removed from the tree and re-inserted. Otherwise
-	/// the function returns immediately.
-	/// @return true if the proxy was re-inserted.
-	func MoveProxy(proxyId int, in aabb *b2AABB, in displacement *b2Vec2) bool {
-        b2Assert(0 <= proxyId && proxyId < this.m_nodeCapacity)
+    /// Move a proxy with a swepted AABB. If the proxy has moved outside of its fattened AABB,
+    /// then the proxy is removed from the tree and re-inserted. Otherwise
+    /// the function returns immediately.
+    /// @return true if the proxy was re-inserted.
+    func MoveProxy(proxyId int, in aabb *b2AABB, in displacement *b2Vec2) bool {
+        b2Assert(0 <= proxyId && proxyId < this.m_nodeCapacity, #get __file__, #get __line__, 'b2Assert(0 <= proxyId && proxyId < this.m_nodeCapacity)')
 
-        b2Assert(this.m_nodes[proxyId].IsLeaf())
+        b2Assert(this.m_nodes[proxyId].IsLeaf(, #get __file__, #get __line__, 'b2Assert(this.m_nodes[proxyId].IsLeaf()'))
 
         // Extend AABB
         fatAABB POD b2AABB = undef
@@ -166,32 +166,32 @@ struct b2DynamicTree (
         return true
     }
 
-	/// Get proxy user data.
-	/// @return the proxy user data or 0 if the id is invalid.
-	func GetUserData(proxyId int) ptr {
-        b2Assert(0 <= proxyId && proxyId < this.m_nodeCapacity)
-	    return this.m_nodes[proxyId].userData
+    /// Get proxy user data.
+    /// @return the proxy user data or 0 if the id is invalid.
+    func GetUserData(proxyId int) ptr {
+        b2Assert(0 <= proxyId && proxyId < this.m_nodeCapacity, #get __file__, #get __line__, 'b2Assert(0 <= proxyId && proxyId < this.m_nodeCapacity)')
+        return this.m_nodes[proxyId].userData
     }
 
-	func WasMoved(proxyId int) bool {
-        b2Assert(0 <= proxyId && proxyId < this.m_nodeCapacity)
-	    return this.m_nodes[proxyId].moved
+    func WasMoved(proxyId int) bool {
+        b2Assert(0 <= proxyId && proxyId < this.m_nodeCapacity, #get __file__, #get __line__, 'b2Assert(0 <= proxyId && proxyId < this.m_nodeCapacity)')
+        return this.m_nodes[proxyId].moved
     }
 
-	func ClearMoved(proxyId int) void {
-        b2Assert(0 <= proxyId && proxyId < this.m_nodeCapacity)
-	    this.m_nodes[proxyId].moved = false
+    func ClearMoved(proxyId int) void {
+        b2Assert(0 <= proxyId && proxyId < this.m_nodeCapacity, #get __file__, #get __line__, 'b2Assert(0 <= proxyId && proxyId < this.m_nodeCapacity)')
+        this.m_nodes[proxyId].moved = false
     }
 
-	/// Get the fat AABB for a proxy.
-	func GetFatAABB(proxyId int) *b2AABB {
-        b2Assert(0 <= proxyId && proxyId < this.m_nodeCapacity)
-	    return &this.m_nodes[proxyId].aabb
+    /// Get the fat AABB for a proxy.
+    func GetFatAABB(proxyId int) *b2AABB {
+        b2Assert(0 <= proxyId && proxyId < this.m_nodeCapacity, #get __file__, #get __line__, 'b2Assert(0 <= proxyId && proxyId < this.m_nodeCapacity)')
+        return &this.m_nodes[proxyId].aabb
     }
 
-	/// Query an AABB for overlapping proxies. The callback class
-	/// is called for each proxy that overlaps the supplied AABB.
-	func Query(callback *$T, in aabb *b2AABB) void {
+    /// Query an AABB for overlapping proxies. The callback class
+    /// is called for each proxy that overlaps the supplied AABB.
+    func Query(callback *$T, in aabb *b2AABB) void {
         stack <int, 256 int> b2GrowableStack = undef
         b2GrowableStack(&stack)
 
@@ -215,18 +215,18 @@ struct b2DynamicTree (
         }
     }
 
-	/// Ray-cast against the proxies in the tree. This relies on the callback
-	/// to perform a exact ray-cast in the case were the proxy contains a shape.
-	/// The callback also performs the any collision filtering. This has performance
-	/// roughly equal to k * log(n), where k is the number of collisions and n is the
-	/// number of proxies in the tree.
-	/// @param input the ray-cast input data. The ray extends from p1 to p1 + maxFraction * (p2 - p1).
-	/// @param callback a callback class that is called for each proxy that is hit by the ray.
-	func RayCast(callback *$T, in input *b2RayCastInput) void {
+    /// Ray-cast against the proxies in the tree. This relies on the callback
+    /// to perform a exact ray-cast in the case were the proxy contains a shape.
+    /// The callback also performs the any collision filtering. This has performance
+    /// roughly equal to k * log(n), where k is the number of collisions and n is the
+    /// number of proxies in the tree.
+    /// @param input the ray-cast input data. The ray extends from p1 to p1 + maxFraction * (p2 - p1).
+    /// @param callback a callback class that is called for each proxy that is hit by the ray.
+    func RayCast(callback *$T, in input *b2RayCastInput) void {
         p1 POD b2Vec2 = input.p1
         p2 POD b2Vec2 = input.p2
         r POD b2Vec2 = p2 - p1
-        b2Assert(r.LengthSquared() > 0.0f)
+        b2Assert(r.LengthSquared(, #get __file__, #get __line__, 'b2Assert(r.LengthSquared()') > 0.0f)
         r.Normalize()
 
         // v is perpendicular to the segment.
@@ -296,8 +296,8 @@ struct b2DynamicTree (
         }
     }
 
-	/// Validate this tree. For testing.
-	func Validate() void {
+    /// Validate this tree. For testing.
+    func Validate() void {
         #if b2DEBUG
             this.ValidateStructure(this.m_root)
             this.ValidateMetrics(this.m_root)
@@ -305,34 +305,34 @@ struct b2DynamicTree (
             freeCount int = 0
             freeIndex int = this.m_freeList
             while freeIndex != b2_nullNode {
-                b2Assert(0 <= freeIndex && freeIndex < this.m_nodeCapacity)
+                b2Assert(0 <= freeIndex && freeIndex < this.m_nodeCapacity, #get __file__, #get __line__, 'b2Assert(0 <= freeIndex && freeIndex < this.m_nodeCapacity)')
                 freeIndex = this.m_nodes[freeIndex].next
                 ++freeCount
             }
 
-            b2Assert(this.GetHeight() == this.ComputeHeight());
+            b2Assert(this.GetHeight(, #get __file__, #get __line__, 'b2Assert(this.GetHeight()') == this.ComputeHeight());
 
-            b2Assert(this.m_nodeCount + this.freeCount == this.m_nodeCapacity)
+            b2Assert(this.m_nodeCount + this.freeCount == this.m_nodeCapacity, #get __file__, #get __line__, 'b2Assert(this.m_nodeCount + this.freeCount == this.m_nodeCapacity)')
         #end
     }
 
-	/// Compute the height of the binary tree in O(N) time. Should not be
-	/// called often.
-	func GetHeight() int {
+    /// Compute the height of the binary tree in O(N) time. Should not be
+    /// called often.
+    func GetHeight() int {
         if this.m_root == b2_nullNode, return 0
         return this.m_nodes[this.m_root].height
     }
 
-	/// Get the maximum balance of an node in the tree. The balance is the difference
-	/// in height of the two children of a node.
-	func GetMaxBalance() int {
+    /// Get the maximum balance of an node in the tree. The balance is the difference
+    /// in height of the two children of a node.
+    func GetMaxBalance() int {
         maxBalance int = 0
 
         for(i int = 0; i < this.m_nodeCapacity; ++i){
             node *b2TreeNode = this.m_nodes at i
             if node.height <= 1, continue
 
-            b2Assert(node.IsLeaf() == false)
+            b2Assert(node.IsLeaf(, #get __file__, #get __line__, 'b2Assert(node.IsLeaf()') == false)
 
             child1 int = node.child1
             child2 int = node.child2
@@ -343,8 +343,8 @@ struct b2DynamicTree (
         return maxBalance
     }
 
-	/// Get the ratio of the sum of the node areas to the root area.
-	func GetAreaRatio() float {
+    /// Get the ratio of the sum of the node areas to the root area.
+    func GetAreaRatio() float {
         if this.m_root == b2_nullNode, return 0.0f
 
         root *b2TreeNode = this.m_nodes at this.m_root
@@ -364,8 +364,8 @@ struct b2DynamicTree (
         return totalArea / rootArea
     }
 
-	/// Build an optimal tree. Very expensive. For testing.
-	func RebuildBottomUp() void {
+    /// Build an optimal tree. Very expensive. For testing.
+    func RebuildBottomUp() void {
         nodes *int = b2Alloc(this.m_nodeCount * sizeof int) as *int
         count int = 0
 
@@ -433,10 +433,10 @@ struct b2DynamicTree (
         this.Validate()
     }
 
-	/// Shift the world origin. Useful for large worlds.
-	/// The shift formula is: position -= newOrigin
-	/// @param newOrigin the new origin with respect to the old origin
-	func ShiftOrigin(in newOrigin *b2Vec2) void {
+    /// Shift the world origin. Useful for large worlds.
+    /// The shift formula is: position -= newOrigin
+    /// @param newOrigin the new origin with respect to the old origin
+    func ShiftOrigin(in newOrigin *b2Vec2) void {
         // Build array of leaves. Free the rest.
         for(i int = 0; i < this.m_nodeCapacity; ++i){
             this.m_nodes[i].aabb.lowerBound.SubtractAssign(*newOrigin)
@@ -450,7 +450,7 @@ struct b2DynamicTree (
     func AllocateNode() int {
         // Expand the node pool as needed.
         if this.m_freeList == b2_nullNode {
-            b2Assert(this.m_nodeCount == this.m_nodeCapacity)
+            b2Assert(this.m_nodeCount == this.m_nodeCapacity, #get __file__, #get __line__, 'b2Assert(this.m_nodeCount == this.m_nodeCapacity)')
 
             // The free list is empty. Rebuild a bigger pool.
             oldNodes *b2TreeNode = this.m_nodes
@@ -484,16 +484,16 @@ struct b2DynamicTree (
     }
 
     // Return a node to the pool.
-	func FreeNode(nodeId int) void {
-        b2Assert(0 <= nodeId && nodeId < this.m_nodeCapacity)
-        b2Assert(0 < this.m_nodeCount)
+    func FreeNode(nodeId int) void {
+        b2Assert(0 <= nodeId && nodeId < this.m_nodeCapacity, #get __file__, #get __line__, 'b2Assert(0 <= nodeId && nodeId < this.m_nodeCapacity)')
+        b2Assert(0 < this.m_nodeCount, #get __file__, #get __line__, 'b2Assert(0 < this.m_nodeCount)')
         this.m_nodes[nodeId].next = this.m_freeList
         this.m_nodes[nodeId].height = -1
         this.m_freeList = nodeId
         --this.m_nodeCount
     }
 
-	func InsertLeaf(leaf int) void {
+    func InsertLeaf(leaf int) void {
         ++this.m_insertionCount
 
         if this.m_root == b2_nullNode {
@@ -600,8 +600,8 @@ struct b2DynamicTree (
             child1 int = this.m_nodes[index].child1
             child2 int = this.m_nodes[index].child2
 
-            b2Assert(child1 != b2_nullNode)
-            b2Assert(child2 != b2_nullNode)
+            b2Assert(child1 != b2_nullNode, #get __file__, #get __line__, 'b2Assert(child1 != b2_nullNode)')
+            b2Assert(child2 != b2_nullNode, #get __file__, #get __line__, 'b2Assert(child2 != b2_nullNode)')
 
             this.m_nodes[index].height = 1 + b2Max(this.m_nodes[child1].height, this.m_nodes[child2].height)
             this.m_nodes[index].aabb.Combine(&this.m_nodes[child1].aabb, &this.m_nodes[child2].aabb)
@@ -614,7 +614,7 @@ struct b2DynamicTree (
         #end
     }
 
-	func RemoveLeaf(leaf int) void {
+    func RemoveLeaf(leaf int) void {
         if leaf == this.m_root {
             this.m_root = b2_nullNode
             return
@@ -667,8 +667,8 @@ struct b2DynamicTree (
 
     // Perform a left or right rotation if node A is imbalanced.
     // Returns the new root index.
-	func Balance(iA int) int {
-        b2Assert(iA != b2_nullNode)
+    func Balance(iA int) int {
+        b2Assert(iA != b2_nullNode, #get __file__, #get __line__, 'b2Assert(iA != b2_nullNode)')
 
         A *b2TreeNode = this.m_nodes at iA
         if A.IsLeaf() || A.height < 2 {
@@ -677,8 +677,8 @@ struct b2DynamicTree (
 
         iB int = A.child1
         iC int = A.child2
-        b2Assert(0 <= iB && iB < this.m_nodeCapacity)
-        b2Assert(0 <= iC && iC < this.m_nodeCapacity)
+        b2Assert(0 <= iB && iB < this.m_nodeCapacity, #get __file__, #get __line__, 'b2Assert(0 <= iB && iB < this.m_nodeCapacity)')
+        b2Assert(0 <= iC && iC < this.m_nodeCapacity, #get __file__, #get __line__, 'b2Assert(0 <= iC && iC < this.m_nodeCapacity)')
 
         B *b2TreeNode = this.m_nodes at iB
         C *b2TreeNode = this.m_nodes at iC
@@ -691,8 +691,8 @@ struct b2DynamicTree (
             iG int = C.child2
             F *b2TreeNode = this.m_nodes at iF
             G *b2TreeNode = this.m_nodes at iG
-            b2Assert(0 <= iF && iF < this.m_nodeCapacity)
-            b2Assert(0 <= iG && iG < this.m_nodeCapacity)
+            b2Assert(0 <= iF && iF < this.m_nodeCapacity, #get __file__, #get __line__, 'b2Assert(0 <= iF && iF < this.m_nodeCapacity)')
+            b2Assert(0 <= iG && iG < this.m_nodeCapacity, #get __file__, #get __line__, 'b2Assert(0 <= iG && iG < this.m_nodeCapacity)')
 
             // Swap A and C
             C.child1 = iA
@@ -704,7 +704,7 @@ struct b2DynamicTree (
                 if this.m_nodes[C.parent].child1 == iA {
                     this.m_nodes[C.parent].child1 = iC
                 } else {
-                    b2Assert(this.m_nodes[C.parent].child2 == iA)
+                    b2Assert(this.m_nodes[C.parent].child2 == iA, #get __file__, #get __line__, 'b2Assert(this.m_nodes[C.parent].child2 == iA)')
                     this.m_nodes[C.parent].child2 = iC
                 }
             } else {
@@ -741,8 +741,8 @@ struct b2DynamicTree (
             iE int = B.child2
             D *b2TreeNode = this.m_nodes at iD
             E *b2TreeNode = this.m_nodes at iE
-            b2Assert(0 <= iD && iD < this.m_nodeCapacity)
-            b2Assert(0 <= iE && iE < this.m_nodeCapacity)
+            b2Assert(0 <= iD && iD < this.m_nodeCapacity, #get __file__, #get __line__, 'b2Assert(0 <= iD && iD < this.m_nodeCapacity)')
+            b2Assert(0 <= iE && iE < this.m_nodeCapacity, #get __file__, #get __line__, 'b2Assert(0 <= iE && iE < this.m_nodeCapacity)')
 
             // Swap A and B
             B.child1 = iA
@@ -754,7 +754,7 @@ struct b2DynamicTree (
                 if this.m_nodes[B.parent].child1 == iA {
                     this.m_nodes[B.parent].child1 = iB
                 } else {
-                    b2Assert(this.m_nodes[B.parent].child2 == iA)
+                    b2Assert(this.m_nodes[B.parent].child2 == iA, #get __file__, #get __line__, 'b2Assert(this.m_nodes[B.parent].child2 == iA)')
                     this.m_nodes[B.parent].child2 = iB
                 }
             } else {
@@ -788,12 +788,12 @@ struct b2DynamicTree (
         return iA
     }
 
-	func ComputeHeight() int {
-	    return this.ComputeHeight(this.m_root)
+    func ComputeHeight() int {
+        return this.ComputeHeight(this.m_root)
     }
 
-	func ComputeHeight(nodeId int) int {
-        b2Assert(0 <= nodeId && nodeId < this.m_nodeCapacity)
+    func ComputeHeight(nodeId int) int {
+        b2Assert(0 <= nodeId && nodeId < this.m_nodeCapacity, #get __file__, #get __line__, 'b2Assert(0 <= nodeId && nodeId < this.m_nodeCapacity)')
         node *b2TreeNode = this.m_nodes at nodeId
 
         if node.IsLeaf(), return 0
@@ -803,11 +803,11 @@ struct b2DynamicTree (
         return 1 + b2Max(height1, height2)
     }
 
-	func ValidateStructure(index int) void {
+    func ValidateStructure(index int) void {
         if index == b2_nullNode, return
         
         if index == this.m_root {
-            b2Assert(this.m_nodes[index].parent == b2_nullNode)
+            b2Assert(this.m_nodes[index].parent == b2_nullNode, #get __file__, #get __line__, 'b2Assert(this.m_nodes[index].parent == b2_nullNode)')
         }
 
         node *b2TreeNode = this.m_nodes at index
@@ -816,23 +816,23 @@ struct b2DynamicTree (
         child2 int = node.child2
 
         if node.IsLeaf() {
-            b2Assert(child1 == b2_nullNode)
-            b2Assert(child2 == b2_nullNode)
-            b2Assert(node.height == 0)
+            b2Assert(child1 == b2_nullNode, #get __file__, #get __line__, 'b2Assert(child1 == b2_nullNode)')
+            b2Assert(child2 == b2_nullNode, #get __file__, #get __line__, 'b2Assert(child2 == b2_nullNode)')
+            b2Assert(node.height == 0, #get __file__, #get __line__, 'b2Assert(node.height == 0)')
             return
         }
 
-        b2Assert(0 <= child1 && child1 < this.m_nodeCapacity)
-        b2Assert(0 <= child2 && child2 < this.m_nodeCapacity)
+        b2Assert(0 <= child1 && child1 < this.m_nodeCapacity, #get __file__, #get __line__, 'b2Assert(0 <= child1 && child1 < this.m_nodeCapacity)')
+        b2Assert(0 <= child2 && child2 < this.m_nodeCapacity, #get __file__, #get __line__, 'b2Assert(0 <= child2 && child2 < this.m_nodeCapacity)')
 
-        b2Assert(this.m_nodes[child1].parent == index)
-        b2Assert(this.m_nodes[child2].parent == index)
+        b2Assert(this.m_nodes[child1].parent == index, #get __file__, #get __line__, 'b2Assert(this.m_nodes[child1].parent == index)')
+        b2Assert(this.m_nodes[child2].parent == index, #get __file__, #get __line__, 'b2Assert(this.m_nodes[child2].parent == index)')
 
         this.ValidateStructure(child1)
         this.ValidateStructure(child2)
     }
 
-	func ValidateMetrics(index int) void {
+    func ValidateMetrics(index int) void {
         if index == b2_nullNode, return
 
         node *b2TreeNode = this.m_nodes at index
@@ -841,26 +841,26 @@ struct b2DynamicTree (
         child2 int = node.child2
 
         if node.IsLeaf() {
-            b2Assert(child1 == b2_nullNode)
-            b2Assert(child2 == b2_nullNode)
-            b2Assert(node.height == 0)
+            b2Assert(child1 == b2_nullNode, #get __file__, #get __line__, 'b2Assert(child1 == b2_nullNode)')
+            b2Assert(child2 == b2_nullNode, #get __file__, #get __line__, 'b2Assert(child2 == b2_nullNode)')
+            b2Assert(node.height == 0, #get __file__, #get __line__, 'b2Assert(node.height == 0)')
             return
         }
 
-        b2Assert(0 <= child1 && child1 < this.m_nodeCapacity)
-        b2Assert(0 <= child2 && child2 < this.m_nodeCapacity)
+        b2Assert(0 <= child1 && child1 < this.m_nodeCapacity, #get __file__, #get __line__, 'b2Assert(0 <= child1 && child1 < this.m_nodeCapacity)')
+        b2Assert(0 <= child2 && child2 < this.m_nodeCapacity, #get __file__, #get __line__, 'b2Assert(0 <= child2 && child2 < this.m_nodeCapacity)')
 
         height1 int = this.m_nodes[child1].height
         height2 int = this.m_nodes[child2].height
         height int = undef
         height = 1 + b2Max(height1, height2)
-        b2Assert(node.height == height)
+        b2Assert(node.height == height, #get __file__, #get __line__, 'b2Assert(node.height == height)')
 
         aabb POD b2AABB = undef
         aabb.Combine(&this.m_nodes[child1].aabb, &this.m_nodes[child2].aabb)
 
-        b2Assert(aabb.lowerBound == node.aabb.lowerBound)
-        b2Assert(aabb.upperBound == node.aabb.upperBound)
+        b2Assert(aabb.lowerBound == node.aabb.lowerBound, #get __file__, #get __line__, 'b2Assert(aabb.lowerBound == node.aabb.lowerBound)')
+        b2Assert(aabb.upperBound == node.aabb.upperBound, #get __file__, #get __line__, 'b2Assert(aabb.upperBound == node.aabb.upperBound)')
 
         this.ValidateMetrics(child1)
         this.ValidateMetrics(child2)
@@ -872,23 +872,23 @@ struct b2DynamicTree (
 func b2DynamicTree() b2DynamicTree {
     dt POD b2DynamicTree = undef
     
-	dt.m_root = b2_nullNode
+    dt.m_root = b2_nullNode
 
-	dt.m_nodeCapacity = 16
-	dt.m_nodeCount = 0
-	dt.m_nodes = b2Alloc(dt.m_nodeCapacity * sizeof b2TreeNode) as *b2TreeNode
-	memset(dt.m_nodes, 0, dt.m_nodeCapacity * sizeof b2TreeNode)
+    dt.m_nodeCapacity = 16
+    dt.m_nodeCount = 0
+    dt.m_nodes = b2Alloc(dt.m_nodeCapacity * sizeof b2TreeNode) as *b2TreeNode
+    memset(dt.m_nodes, 0, dt.m_nodeCapacity * sizeof b2TreeNode)
 
-	// Build a linked list for the free list.
-	for(i int = 0; i < dt.m_nodeCapacity - 1; ++i){
-		dt.m_nodes[i].next = i + 1
-		dt.m_nodes[i].height = -1
-	}
+    // Build a linked list for the free list.
+    for(i int = 0; i < dt.m_nodeCapacity - 1; ++i){
+        dt.m_nodes[i].next = i + 1
+        dt.m_nodes[i].height = -1
+    }
 
-	dt.m_nodes[dt.m_nodeCapacity - 1].next = b2_nullNode
-	dt.m_nodes[dt.m_nodeCapacity - 1].height = -1
-	dt.m_freeList = 0
+    dt.m_nodes[dt.m_nodeCapacity - 1].next = b2_nullNode
+    dt.m_nodes[dt.m_nodeCapacity - 1].height = -1
+    dt.m_freeList = 0
 
-	dt.m_insertionCount = 0
+    dt.m_insertionCount = 0
     return dt
 }

@@ -56,7 +56,7 @@ struct b2PolygonShape (
     /// @warning collinear points are handled but not removed. Collinear points
     /// may lead to poor stacking behavior.
     func Set(vertices *b2Vec2, count int) {
-        b2Assert(3 <= count && count <= b2_maxPolygonVertices)
+        b2Assert(3 <= count && count <= b2_maxPolygonVertices, #get __file__, #get __line__, 'b2Assert(3 <= count && count <= b2_maxPolygonVertices)')
 
         if count < 3 {
             this.SetAsBox(1.0f, 1.0f)
@@ -87,7 +87,7 @@ struct b2PolygonShape (
         n = tempCount
         if n < 3 {
             // Polygon is degenerate.
-            b2Assert(false)
+            b2Assert(false, #get __file__, #get __line__, 'b2Assert(false)')
             this.SetAsBox(1.0f, 1.0f)
             return
         }
@@ -111,7 +111,7 @@ struct b2PolygonShape (
         ih int = i0
 
         until break {
-            b2Assert(m < b2_maxPolygonVertices)
+            b2Assert(m < b2_maxPolygonVertices, #get __file__, #get __line__, 'b2Assert(m < b2_maxPolygonVertices)')
             hull[m] = ih
 
             ie int = 0
@@ -142,7 +142,7 @@ struct b2PolygonShape (
         
         if m < 3 {
             // Polygon is degenerate.
-            b2Assert(false)
+            b2Assert(false, #get __file__, #get __line__, 'b2Assert(false)')
             this.SetAsBox(1.0f, 1.0f)
             return
         }
@@ -159,7 +159,7 @@ struct b2PolygonShape (
             i1 int = i
             i2 int = i + 1 < m ? i + 1 : 0
             edge POD b2Vec2 = this.m_vertices[i2] - this.m_vertices[i1]
-            b2Assert(edge.LengthSquared() > b2_epsilon * b2_epsilon)
+            b2Assert(edge.LengthSquared(, #get __file__, #get __line__, 'b2Assert(edge.LengthSquared()') > b2_epsilon * b2_epsilon)
             this.m_normals[i] = b2Cross(edge, 1.0f)
             this.m_normals[i].Normalize()
         }
@@ -245,7 +245,7 @@ struct b2PolygonShape (
             numerator float = b2Dot(this.m_normals[i], this.m_vertices[i] - p1)
             denominator float = b2Dot(this.m_normals[i], d)
 
-            if denominator == 0.0f {	
+            if denominator == 0.0f {    
                 if numerator < 0.0f {
                     return false
                 }
@@ -273,7 +273,7 @@ struct b2PolygonShape (
             if upper < lower, return false
         }
 
-        b2Assert(0.0f <= lower && lower <= input.maxFraction)
+        b2Assert(0.0f <= lower && lower <= input.maxFraction, #get __file__, #get __line__, 'b2Assert(0.0f <= lower && lower <= input.maxFraction)')
 
         if index >= 0 {
             output.fraction = lower
@@ -326,7 +326,7 @@ struct b2PolygonShape (
         //
         // The rest of the derivation is handled by computer algebra.
 
-        b2Assert(this.m_count >= 3)
+        b2Assert(this.m_count >= 3, #get __file__, #get __line__, 'b2Assert(this.m_count >= 3)')
 
         center POD b2Vec2 = POD b2Vec2(0.0f, 0.0f)
         area float = 0.0f
@@ -366,7 +366,7 @@ struct b2PolygonShape (
         massData.mass = density * area
 
         // Center of mass
-        b2Assert(area > b2_epsilon)
+        b2Assert(area > b2_epsilon, #get __file__, #get __line__, 'b2Assert(area > b2_epsilon)')
         center.MultiplyAssign(1.0f / area)
         massData.center = center + s
 
@@ -400,7 +400,7 @@ struct b2PolygonShape (
 }
 
 func b2_polygon_shape\ComputeCentroid(vs *b2Vec2, count int) b2Vec2 {
-    b2Assert(count >= 3)
+    b2Assert(count >= 3, #get __file__, #get __line__, 'b2Assert(count >= 3)')
     
     c POD b2Vec2 = b2Vec2(0.0f, 0.0f)
     area float = 0.0f
@@ -430,7 +430,7 @@ func b2_polygon_shape\ComputeCentroid(vs *b2Vec2, count int) b2Vec2 {
     }
 
     // Centroid
-    b2Assert(area > b2_epsilon)
+    b2Assert(area > b2_epsilon, #get __file__, #get __line__, 'b2Assert(area > b2_epsilon)')
     c = c * (1.0f / area) + s
     return c
 }

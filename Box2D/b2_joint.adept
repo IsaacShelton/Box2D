@@ -35,24 +35,24 @@ REQUIRES:
 */
 
 enum b2JointType (
-	e_unknownJoint,
-	e_revoluteJoint,
-	e_prismaticJoint,
-	e_distanceJoint,
-	e_pulleyJoint,
-	e_mouseJoint,
-	e_gearJoint,
-	e_wheelJoint,
+    e_unknownJoint,
+    e_revoluteJoint,
+    e_prismaticJoint,
+    e_distanceJoint,
+    e_pulleyJoint,
+    e_mouseJoint,
+    e_gearJoint,
+    e_wheelJoint,
     e_weldJoint,
-	e_frictionJoint,
-	e_ropeJoint,
-	e_motorJoint
+    e_frictionJoint,
+    e_ropeJoint,
+    e_motorJoint
 )
 
 struct b2Jacobian (
     linear b2Vec2,
-	angularA float,
-	angularB float
+    angularA float,
+    angularB float
 )
 
 /// A joint edge is used to connect bodies and joints together
@@ -61,28 +61,28 @@ struct b2Jacobian (
 /// maintained in each attached body. Each joint has two joint
 /// nodes, one for each attached body.
 struct b2JointEdge (
-	other *b2Body,     ///< provides quick access to the other body attached.
-	joint *b2Joint,    ///< the joint
-	prev *b2JointEdge, ///< the previous joint edge in the body's joint list
-	next *b2JointEdge  ///< the next joint edge in the body's joint list
+    other *b2Body,     ///< provides quick access to the other body attached.
+    joint *b2Joint,    ///< the joint
+    prev *b2JointEdge, ///< the previous joint edge in the body's joint list
+    next *b2JointEdge  ///< the next joint edge in the body's joint list
 )
 
 /// Joint definitions are used to construct joints.
 struct b2JointDef (
     /// The joint type is set automatically for concrete joint types.
-	type b2JointType,
+    type b2JointType,
 
-	/// Use this to attach application specific data to your joints.
-	userData b2JointUserData,
+    /// Use this to attach application specific data to your joints.
+    userData b2JointUserData,
 
-	/// The first attached body.
-	bodyA *b2Body,
+    /// The first attached body.
+    bodyA *b2Body,
 
-	/// The second attached body.
-	bodyB *b2Body,
+    /// The second attached body.
+    bodyB *b2Body,
 
-	/// Set this flag to true if the attached bodies should collide.
-	collideConnected bool
+    /// Set this flag to true if the attached bodies should collide.
+    collideConnected bool
 )
 
 func b2JointDef() b2JointDef {
@@ -97,39 +97,39 @@ func b2JointDef() b2JointDef {
 /// Utility to compute linear stiffness values from frequency and damping ratio
 func b2LinearStiffness(out stiffness, damping *float, in frequencyHertz, dampingRatio float, in bodyA, bodyB *b2Body) void {
     massA float = bodyA.GetMass()
-	massB float = bodyB.GetMass()
-	mass float = undef
+    massB float = bodyB.GetMass()
+    mass float = undef
 
-	if massA > 0.0f && massB > 0.0f {
-		mass = massA * massB / (massA + massB)
-	} else if massA > 0.0f {
-		mass = massA
-	} else {
-		mass = massB
-	}
+    if massA > 0.0f && massB > 0.0f {
+        mass = massA * massB / (massA + massB)
+    } else if massA > 0.0f {
+        mass = massA
+    } else {
+        mass = massB
+    }
 
-	omega float = 2.0f * b2_pi * frequencyHertz
-	*stiffness = mass * omega * omega
-	*damping = 2.0f * mass * dampingRatio * omega
+    omega float = 2.0f * b2_pi * frequencyHertz
+    *stiffness = mass * omega * omega
+    *damping = 2.0f * mass * dampingRatio * omega
 }
 
 /// Utility to compute rotational stiffness values frequency and damping ratio
 func b2AngularStiffness(out stiffness, damping *float, in frequencyHertz, dampingRatio float, in bodyA, bodyB *b2Body) void {
     IA float = bodyA.GetInertia()
-	IB float = bodyB.GetInertia()
-	I float = undef
+    IB float = bodyB.GetInertia()
+    I float = undef
     
-	if IA > 0.0f && IB > 0.0f {
-		I = IA * IB / (IA + IB)
-	} else if IA > 0.0f {
-		I = IA
-	} else {
-		I = IB
-	}
+    if IA > 0.0f && IB > 0.0f {
+        I = IA * IB / (IA + IB)
+    } else if IA > 0.0f {
+        I = IA
+    } else {
+        I = IB
+    }
 
-	omega float = 2.0f * b2_pi * frequencyHertz
-	*stiffness = I * omega * omega
-	*damping = 2.0f * I * dampingRatio * omega
+    omega float = 2.0f * b2_pi * frequencyHertz
+    *stiffness = I * omega * omega
+    *damping = 2.0f * I * dampingRatio * omega
 }
 
 /// The base joint class. Joints are used to constraint two bodies together in
@@ -138,37 +138,37 @@ struct b2Joint (
     vtable b2JointVTable,
 
     m_type b2JointType,
-	m_prev *b2Joint,
-	m_next *b2Joint,
-	m_edgeA b2JointEdge,
-	m_edgeB b2JointEdge,
-	m_bodyA *b2Body,
-	m_bodyB *b2Body,
+    m_prev *b2Joint,
+    m_next *b2Joint,
+    m_edgeA b2JointEdge,
+    m_edgeB b2JointEdge,
+    m_bodyA *b2Body,
+    m_bodyB *b2Body,
 
-	m_index int,
+    m_index int,
 
-	m_islandFlag bool,
-	m_collideConnected bool,
+    m_islandFlag bool,
+    m_collideConnected bool,
 
-	m_userData b2JointUserData
+    m_userData b2JointUserData
 ) {
     /// Get the type of the concrete joint.
-	func GetType() b2JointType {
+    func GetType() b2JointType {
         return this.m_type
     }
 
-	/// Get the first body attached to this joint.
-	func GetBodyA() *b2Body {
+    /// Get the first body attached to this joint.
+    func GetBodyA() *b2Body {
         return this.m_bodyA
     }
 
-	/// Get the second body attached to this joint.
-	func GetBodyB() *b2Body {
+    /// Get the second body attached to this joint.
+    func GetBodyB() *b2Body {
         return this.m_bodyB
     }
 
-	/// Get the anchor point on bodyA in world coordinates.
-	// virtual b2Vec2 GetAnchorA() const = 0;
+    /// Get the anchor point on bodyA in world coordinates.
+    // virtual b2Vec2 GetAnchorA() const = 0;
     func GetAnchorA() b2Vec2 {
         f func(ptr) b2Vec2 = this.vtable.f_GetAnchorA as func(ptr) b2Vec2
         
@@ -180,8 +180,8 @@ struct b2Joint (
         return f(this)
     }
 
-	/// Get the anchor point on bodyB in world coordinates.
-	// virtual b2Vec2 GetAnchorB() const = 0;
+    /// Get the anchor point on bodyB in world coordinates.
+    // virtual b2Vec2 GetAnchorB() const = 0;
     func GetAnchorB() b2Vec2 {
         f func(ptr) b2Vec2 = this.vtable.f_GetAnchorB as func(ptr) b2Vec2
         
@@ -193,8 +193,8 @@ struct b2Joint (
         return f(this)
     }
 
-	/// Get the reaction force on bodyB at the joint anchor in Newtons.
-	// virtual b2Vec2 GetReactionForce(float inv_dt) const = 0;
+    /// Get the reaction force on bodyB at the joint anchor in Newtons.
+    // virtual b2Vec2 GetReactionForce(float inv_dt) const = 0;
     func GetReactionForce(inv_dt float) b2Vec2 {
         f func(ptr, float) b2Vec2 = this.vtable.f_GetReactionForce as func(ptr, float) b2Vec2
         
@@ -206,8 +206,8 @@ struct b2Joint (
         return f(this, inv_dt)
     }
 
-	/// Get the reaction torque on bodyB in N*m.
-	// virtual float GetReactionTorque(float inv_dt) const = 0;
+    /// Get the reaction torque on bodyB in N*m.
+    // virtual float GetReactionTorque(float inv_dt) const = 0;
     func GetReactionTorque(inv_dt float) float {
         f func(ptr, float) float = this.vtable.f_GetReactionTorque as func(ptr, float) float
         
@@ -219,29 +219,29 @@ struct b2Joint (
         return f(this, inv_dt)
     }
 
-	/// Get the next joint the world joint list.
-	func GetNext() *b2Joint {
+    /// Get the next joint the world joint list.
+    func GetNext() *b2Joint {
         return this.m_next
     }
 
-	/// Get the user data pointer.
-	func GetUserData() *b2JointUserData {
+    /// Get the user data pointer.
+    func GetUserData() *b2JointUserData {
         return &this.m_userData
     }
 
-	/// Short-cut function to determine if either body is enabled.
-	func IsEnabled() bool {
+    /// Short-cut function to determine if either body is enabled.
+    func IsEnabled() bool {
         return this.m_bodyA.IsEnabled() && this.m_bodyB.IsEnabled()
     }
 
-	/// Get collide connected.
-	/// Note: modifying the collide connect flag won't work correctly because
-	/// the flag is only checked when fixture AABBs begin to overlap.
-	func GetCollideConnected() bool {
+    /// Get collide connected.
+    /// Note: modifying the collide connect flag won't work correctly because
+    /// the flag is only checked when fixture AABBs begin to overlap.
+    func GetCollideConnected() bool {
         return this.m_collideConnected
     }
 
-	/// Dump this joint to the log file.
+    /// Dump this joint to the log file.
     // virtual void Dump() { b2Dump('// Dump is not supported for this joint type.\n'); }
     func Dump() void {
         f func(ptr) void = this.vtable.f_Dump as func(ptr) void
@@ -254,14 +254,14 @@ struct b2Joint (
         f(this)
     }
 
-	/// Shift the origin for any points stored in world coordinates.
-	// virtual void ShiftOrigin(const b2Vec2& newOrigin) { B2_NOT_USED(newOrigin);  }
+    /// Shift the origin for any points stored in world coordinates.
+    // virtual void ShiftOrigin(const b2Vec2& newOrigin) { B2_NOT_USED(newOrigin);  }
     func ShiftOrigin(in newOrigin *b2Vec2) void {
         f func(ptr, *b2Vec2) void = this.vtable.f_ShiftOrigin as func(ptr, *b2Vec2) void
         if f, f(this, newOrigin)
     }
 
-	/// Debug draw this joint
+    /// Debug draw this joint
     // virtual void Draw(b2Draw* draw) const;
     func Draw(draw *b2Draw) void {
         f func(ptr, *b2Draw) void = this.vtable.f_Draw as func(ptr, *b2Draw) void
@@ -371,29 +371,29 @@ func b2JointVTable(_ *$Impl, use_defer bool) b2JointVTable {
 }
 
 func b2Joint(out uninitialized *$b2JointLike, in definition *b2JointDef) *b2Joint {
-	b2Assert(definition.bodyA != definition.bodyB)
+    b2Assert(definition.bodyA != definition.bodyB, #get __file__, #get __line__, 'b2Assert(definition.bodyA != definition.bodyB)')
 
     uninitialized.vtable = b2JointVTable(uninitialized, true)
 
-	uninitialized.m_type = definition.type
-	uninitialized.m_prev = null
-	uninitialized.m_next = null
-	uninitialized.m_bodyA = definition.bodyA
-	uninitialized.m_bodyB = definition.bodyB
-	uninitialized.m_index = 0
-	uninitialized.m_collideConnected = definition.collideConnected
-	uninitialized.m_islandFlag = false
-	uninitialized.m_userData = definition.userData
+    uninitialized.m_type = definition.type
+    uninitialized.m_prev = null
+    uninitialized.m_next = null
+    uninitialized.m_bodyA = definition.bodyA
+    uninitialized.m_bodyB = definition.bodyB
+    uninitialized.m_index = 0
+    uninitialized.m_collideConnected = definition.collideConnected
+    uninitialized.m_islandFlag = false
+    uninitialized.m_userData = definition.userData
 
-	uninitialized.m_edgeA.joint = null
-	uninitialized.m_edgeA.other = null
-	uninitialized.m_edgeA.prev = null
-	uninitialized.m_edgeA.next = null
+    uninitialized.m_edgeA.joint = null
+    uninitialized.m_edgeA.other = null
+    uninitialized.m_edgeA.prev = null
+    uninitialized.m_edgeA.next = null
 
-	uninitialized.m_edgeB.joint = null
-	uninitialized.m_edgeB.other = null
-	uninitialized.m_edgeB.prev = null
-	uninitialized.m_edgeB.next = null
+    uninitialized.m_edgeB.joint = null
+    uninitialized.m_edgeB.other = null
+    uninitialized.m_edgeB.prev = null
+    uninitialized.m_edgeB.next = null
 
     return uninitialized as *b2Joint
 }
@@ -401,58 +401,58 @@ func b2Joint(out uninitialized *$b2JointLike, in definition *b2JointDef) *b2Join
 func b2Joint\Create(in definition *b2JointDef, allocator *b2BlockAllocator) *b2Joint {
     joint *b2Joint = null
 
-	switch definition.type {
-	case b2JointType::e_distanceJoint
+    switch definition.type {
+    case b2JointType::e_distanceJoint
         joint = b2Joint\CreateRaw\b2DistanceJoint(allocator.Allocate() ~> *b2DistanceJoint, definition as *b2DistanceJointDef) as *b2Joint
 
-	case b2JointType::e_mouseJoint
+    case b2JointType::e_mouseJoint
         joint = b2Joint\CreateRaw\b2MouseJoint(allocator.Allocate() ~> *b2MouseJoint, definition as *b2MouseJointDef) as *b2Joint
 
-	case b2JointType::e_prismaticJoint
+    case b2JointType::e_prismaticJoint
         joint = b2Joint\CreateRaw\b2PrismaticJoint(allocator.Allocate() ~> *b2PrismaticJoint, definition as *b2PrismaticJointDef) as *b2Joint
 
-	case b2JointType::e_revoluteJoint
+    case b2JointType::e_revoluteJoint
         joint = b2Joint\CreateRaw\b2RevoluteJoint(allocator.Allocate() ~> *b2RevoluteJoint, definition as *b2RevoluteJointDef) as *b2Joint
 
-	case b2JointType::e_pulleyJoint
+    case b2JointType::e_pulleyJoint
         joint = b2Joint\CreateRaw\b2PulleyJoint(allocator.Allocate() ~> *b2PulleyJoint, definition as *b2PulleyJointDef) as *b2Joint
 
-	case b2JointType::e_gearJoint
+    case b2JointType::e_gearJoint
         joint = b2Joint\CreateRaw\b2GearJoint(allocator.Allocate() ~> *b2GearJoint, definition as *b2GearJointDef) as *b2Joint
 
-	case b2JointType::e_wheelJoint
+    case b2JointType::e_wheelJoint
         joint = b2Joint\CreateRaw\b2WheelJoint(allocator.Allocate() ~> *b2WheelJoint, definition as *b2WheelJointDef) as *b2Joint
 
-	case b2JointType::e_weldJoint
+    case b2JointType::e_weldJoint
         joint = b2Joint\CreateRaw\b2WeldJoint(allocator.Allocate() ~> *b2WeldJoint, definition as *b2WeldJointDef) as *b2Joint
         
-	case b2JointType::e_frictionJoint
+    case b2JointType::e_frictionJoint
         joint = b2Joint\CreateRaw\b2FrictionJoint(allocator.Allocate() ~> *b2FrictionJoint, definition as *b2FrictionJointDef) as *b2Joint
 
-	case b2JointType::e_motorJoint
+    case b2JointType::e_motorJoint
         joint = b2Joint\CreateRaw\b2MotorJoint(allocator.Allocate() ~> *b2MotorJoint, definition as *b2MotorJointDef) as *b2Joint
 
-	default
-        b2Assert(false)
-	}
+    default
+        b2Assert(false, #get __file__, #get __line__, 'b2Assert(false)')
+    }
 
-	return joint
+    return joint
 }
 
 func b2Joint\Destroy(joint *b2Joint, allocator *b2BlockAllocator) void {
     joint.__defer__()
 
-	switch joint.m_type {
-	case b2JointType::e_distanceJoint,  allocator.Free(joint, sizeof b2DistanceJoint)
-	case b2JointType::e_mouseJoint,     allocator.Free(joint, sizeof b2MouseJoint)
-	case b2JointType::e_prismaticJoint, allocator.Free(joint, sizeof b2PrismaticJoint)
-	case b2JointType::e_revoluteJoint,  allocator.Free(joint, sizeof b2RevoluteJoint)
-	case b2JointType::e_pulleyJoint,    allocator.Free(joint, sizeof b2PulleyJoint)
-	case b2JointType::e_gearJoint,      allocator.Free(joint, sizeof b2GearJoint)
-	case b2JointType::e_wheelJoint,     allocator.Free(joint, sizeof b2WheelJoint)
-	case b2JointType::e_weldJoint,      allocator.Free(joint, sizeof b2WeldJoint)
-	case b2JointType::e_frictionJoint,  allocator.Free(joint, sizeof b2FrictionJoint)
-	case b2JointType::e_motorJoint,     allocator.Free(joint, sizeof b2MotorJoint)
-	default b2Assert(false)
+    switch joint.m_type {
+    case b2JointType::e_distanceJoint,  allocator.Free(joint, sizeof b2DistanceJoint)
+    case b2JointType::e_mouseJoint,     allocator.Free(joint, sizeof b2MouseJoint)
+    case b2JointType::e_prismaticJoint, allocator.Free(joint, sizeof b2PrismaticJoint)
+    case b2JointType::e_revoluteJoint,  allocator.Free(joint, sizeof b2RevoluteJoint)
+    case b2JointType::e_pulleyJoint,    allocator.Free(joint, sizeof b2PulleyJoint)
+    case b2JointType::e_gearJoint,      allocator.Free(joint, sizeof b2GearJoint)
+    case b2JointType::e_wheelJoint,     allocator.Free(joint, sizeof b2WheelJoint)
+    case b2JointType::e_weldJoint,      allocator.Free(joint, sizeof b2WeldJoint)
+    case b2JointType::e_frictionJoint,  allocator.Free(joint, sizeof b2FrictionJoint)
+    case b2JointType::e_motorJoint,     allocator.Free(joint, sizeof b2MotorJoint)
+    default b2Assert(false, #get __file__, #get __line__, 'b2Assert(false)')se)
 	}
 }

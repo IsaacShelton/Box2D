@@ -27,7 +27,7 @@ import "b2_contact.adept"
 
 struct b2CircleContact (struct b2Contact) {
     // (override)
-	func Evaluate(manifold *b2Manifold, in xfA, xfB *b2Transform) void {
+    func Evaluate(manifold *b2Manifold, in xfA, xfB *b2Transform) void {
         b2CollideCircles(manifold, this.m_fixtureA.GetShape() as *b2CircleShape, xfA, this.m_fixtureB.GetShape() as *b2CircleShape, xfB)
     }
 }
@@ -38,12 +38,12 @@ func b2CircleContact\Create(fixtureA *b2Fixture, _indexA int, fixtureB *b2Fixtur
 
 func b2CircleContact\Destroy(contact *b2Contact, allocator *b2BlockAllocator) void {
     (contact as *b2CircleContact).__defer__()
-	allocator.Free(contact, sizeof b2CircleContact)
+    allocator.Free(contact, sizeof b2CircleContact)
 }
 
 func b2CircleContact(uninitialized *b2CircleContact, fixtureA *b2Fixture, fixtureB *b2Fixture) *b2CircleContact {
     b2Contact(uninitialized, false, fixtureA, 0, fixtureB, 0)
-    b2Assert(uninitialized.m_fixtureA.GetType() == b2ShapeType::e_circle)
-	b2Assert(uninitialized.m_fixtureB.GetType() == b2ShapeType::e_circle)
+    b2Assert(uninitialized.m_fixtureA.GetType(, #get __file__, #get __line__, 'b2Assert(uninitialized.m_fixtureA.GetType()') == b2ShapeType::e_circle)
+    b2Assert(uninitialized.m_fixtureB.GetType(, #get __file__, #get __line__, 'b2Assert(uninitialized.m_fixtureB.GetType()') == b2ShapeType::e_circle)
     return uninitialized
 }

@@ -27,7 +27,7 @@ import "b2_contact.adept"
 
 struct b2EdgeAndPolygonContact (struct b2Contact) {
     // (override)
-	func Evaluate(manifold *b2Manifold, in xfA, xfB *b2Transform) void {
+    func Evaluate(manifold *b2Manifold, in xfA, xfB *b2Transform) void {
         b2CollideEdgeAndPolygon(manifold, this.m_fixtureA.GetShape() as *b2EdgeShape, xfA, this.m_fixtureB.GetShape() as *b2PolygonShape, xfB)
     }
 }
@@ -38,12 +38,12 @@ func b2EdgeAndPolygonContact\Create(fixtureA *b2Fixture, _indexA int, fixtureB *
 
 func b2EdgeAndPolygonContact\Destroy(contact *b2Contact, allocator *b2BlockAllocator) void {
     (contact as *b2EdgeAndPolygonContact).__defer__()
-	allocator.Free(contact, sizeof b2EdgeAndPolygonContact)
+    allocator.Free(contact, sizeof b2EdgeAndPolygonContact)
 }
 
 func b2EdgeAndPolygonContact(uninitialized *b2EdgeAndPolygonContact, fixtureA *b2Fixture, fixtureB *b2Fixture) *b2EdgeAndPolygonContact {
     b2Contact(uninitialized, false, fixtureA, 0, fixtureB, 0)
-    b2Assert(uninitialized.m_fixtureA.GetType() == b2ShapeType::e_edge)
-	b2Assert(uninitialized.m_fixtureB.GetType() == b2ShapeType::e_polygon)
+    b2Assert(uninitialized.m_fixtureA.GetType(, #get __file__, #get __line__, 'b2Assert(uninitialized.m_fixtureA.GetType()') == b2ShapeType::e_edge)
+    b2Assert(uninitialized.m_fixtureB.GetType(, #get __file__, #get __line__, 'b2Assert(uninitialized.m_fixtureB.GetType()') == b2ShapeType::e_polygon)
     return uninitialized
 }

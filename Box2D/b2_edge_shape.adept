@@ -30,27 +30,27 @@ import "b2_shape.adept"
 /// no provide smooth movement across junctions.
 struct b2EdgeShape (
     struct b2Shape,
-	m_vertex1, m_vertex2 b2Vec2, /// These are the edge vertices
-	m_vertex0, m_vertex3 b2Vec2, /// Optional adjacent vertices. These are used for smooth collision.
-	m_oneSided bool              /// Uses m_vertex0 and m_vertex3 to create smooth collision.
+    m_vertex1, m_vertex2 b2Vec2, /// These are the edge vertices
+    m_vertex0, m_vertex3 b2Vec2, /// Optional adjacent vertices. These are used for smooth collision.
+    m_oneSided bool              /// Uses m_vertex0 and m_vertex3 to create smooth collision.
 ) {
     /// Set this as a part of a sequence. Vertex v0 precedes the edge and vertex v3
-	/// follows. These extra vertices are used to provide smooth movement
-	/// across junctions. This also makes the collision one-sided. The edge
-	/// normal points to the right looking from v1 to v2.
+    /// follows. These extra vertices are used to provide smooth movement
+    /// across junctions. This also makes the collision one-sided. The edge
+    /// normal points to the right looking from v1 to v2.
     func SetOneSided(in v0, v1, v2, v3 *b2Vec2) void {
         this.m_vertex0 = POD *v0
-	    this.m_vertex1 = POD *v1
-	    this.m_vertex2 = POD *v2
-	    this.m_vertex3 = POD *v3
-	    this.m_oneSided = true
+        this.m_vertex1 = POD *v1
+        this.m_vertex2 = POD *v2
+        this.m_vertex3 = POD *v3
+        this.m_oneSided = true
     }
 
     /// Set this as an isolated edge. Collision is two-sided.
     func SetTwoSided(in v1, v2 *b2Vec2) void {
         this.m_vertex1 = POD *v1
-	    this.m_vertex2 = POD *v2
-	    this.m_oneSided = false
+        this.m_vertex2 = POD *v2
+        this.m_oneSided = false
     }
 
     /// Implement b2Shape.
@@ -71,7 +71,7 @@ struct b2EdgeShape (
         return false
     }
 
-	/// Implement b2Shape.
+    /// Implement b2Shape.
     // p = p1 + t * d
     // v = v1 + s * e
     // p1 + t * d = v1 + s * e
@@ -146,7 +146,7 @@ struct b2EdgeShape (
         aabb.upperBound = upper + r
     }
 
-	/// @see b2Shape::ComputeMass
+    /// @see b2Shape::ComputeMass
     func ComputeMass(
         out massData *b2MassData,
         in _density float
@@ -164,13 +164,13 @@ func b2EdgeShape() b2EdgeShape {
 
 func b2EdgeShape(out uninitialized *b2EdgeShape) *b2EdgeShape {
     uninitialized.m_type = b2ShapeType::e_edge
-	uninitialized.m_radius = b2_polygonRadius
+    uninitialized.m_radius = b2_polygonRadius
     uninitialized.vtable = &_b2EdgeShape_vtable
-	uninitialized.m_vertex0.x = 0.0f
-	uninitialized.m_vertex0.y = 0.0f
-	uninitialized.m_vertex3.x = 0.0f
-	uninitialized.m_vertex3.y = 0.0f
-	uninitialized.m_oneSided = false
+    uninitialized.m_vertex0.x = 0.0f
+    uninitialized.m_vertex0.y = 0.0f
+    uninitialized.m_vertex3.x = 0.0f
+    uninitialized.m_vertex3.y = 0.0f
+    uninitialized.m_oneSided = false
     return uninitialized
 }
 

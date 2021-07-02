@@ -46,26 +46,26 @@ struct b2WeldJointDef (
     struct b2JointDef,
 
     /// The local anchor point relative to bodyA's origin.
-	localAnchorA b2Vec2,
+    localAnchorA b2Vec2,
 
-	/// The local anchor point relative to bodyB's origin.
-	localAnchorB b2Vec2,
+    /// The local anchor point relative to bodyB's origin.
+    localAnchorB b2Vec2,
 
-	/// The bodyB angle minus bodyA angle in the reference state (radians).
-	referenceAngle float,
+    /// The bodyB angle minus bodyA angle in the reference state (radians).
+    referenceAngle float,
 
-	/// The rotational stiffness in N*m
-	/// Disable softness with a value of 0
-	stiffness float,
+    /// The rotational stiffness in N*m
+    /// Disable softness with a value of 0
+    stiffness float,
 
-	/// The rotational damping in N*m*s
-	damping float
+    /// The rotational damping in N*m*s
+    damping float
 ) {
     /// Initialize the bodies, anchors, reference angle, stiffness, and damping.
-	/// @param bodyA the first body connected by this joint
-	/// @param bodyB the second body connected by this joint
-	/// @param anchor the point of connection in world coordinates
-	func Initialize(bA, bB *b2Body, in anchor *b2Vec2) void {
+    /// @param bodyA the first body connected by this joint
+    /// @param bodyB the second body connected by this joint
+    /// @param anchor the point of connection in world coordinates
+    func Initialize(bA, bB *b2Body, in anchor *b2Vec2) void {
         this.bodyA = bA
         this.bodyB = bB
         this.localAnchorA = bA.GetLocalPoint(anchor)
@@ -92,28 +92,28 @@ struct b2WeldJoint (
     struct b2Joint,
 
     m_stiffness float,
-	m_damping float,
-	m_bias float,
+    m_damping float,
+    m_bias float,
 
-	// Solver shared
-	m_localAnchorA b2Vec2,
-	m_localAnchorB b2Vec2,
-	m_referenceAngle float,
-	m_gamma float,
-	m_impulse b2Vec3,
+    // Solver shared
+    m_localAnchorA b2Vec2,
+    m_localAnchorB b2Vec2,
+    m_referenceAngle float,
+    m_gamma float,
+    m_impulse b2Vec3,
 
-	// Solver temp
-	m_indexA int,
-	m_indexB int,
-	m_rA b2Vec2,
-	m_rB b2Vec2,
-	m_localCenterA b2Vec2,
-	m_localCenterB b2Vec2,
-	m_invMassA float,
-	m_invMassB float,
-	m_invIA float,
-	m_invIB float,
-	m_mass b2Mat33
+    // Solver temp
+    m_indexA int,
+    m_indexB int,
+    m_rA b2Vec2,
+    m_rB b2Vec2,
+    m_localCenterA b2Vec2,
+    m_localCenterB b2Vec2,
+    m_invMassA float,
+    m_invMassB float,
+    m_invIA float,
+    m_invIB float,
+    m_mass b2Mat33
 ) {
     // (override)
     func GetAnchorA() b2Vec2 {
@@ -121,41 +121,41 @@ struct b2WeldJoint (
     }
 
     // (override)
-	func GetAnchorB() b2Vec2 {
+    func GetAnchorB() b2Vec2 {
         return this.m_bodyB.GetWorldPoint(&this.m_localAnchorB)
     }
 
     // (override)
-	func GetReactionForce(inv_dt float) b2Vec2 {
+    func GetReactionForce(inv_dt float) b2Vec2 {
         P POD b2Vec2 = POD b2Vec2(this.m_impulse.x, this.m_impulse.y)
-	    return P * inv_dt
+        return P * inv_dt
     }
 
     // (override)
-	func GetReactionTorque(inv_dt float) float {
+    func GetReactionTorque(inv_dt float) float {
         return inv_dt * this.m_impulse.z
     }
 
-	/// The local anchor point relative to bodyA's origin.
-	func GetLocalAnchorA() *b2Vec2 { return &this.m_localAnchorA; }
+    /// The local anchor point relative to bodyA's origin.
+    func GetLocalAnchorA() *b2Vec2 { return &this.m_localAnchorA; }
 
-	/// The local anchor point relative to bodyB's origin.
-	func GetLocalAnchorB() *b2Vec2 { return &this.m_localAnchorB; }
+    /// The local anchor point relative to bodyB's origin.
+    func GetLocalAnchorB() *b2Vec2 { return &this.m_localAnchorB; }
 
-	/// Get the reference angle.
-	func GetReferenceAngle() float { return this.m_referenceAngle; }
+    /// Get the reference angle.
+    func GetReferenceAngle() float { return this.m_referenceAngle; }
 
-	/// Set/get stiffness in N*m
-	func SetStiffness(hz float) void { this.m_stiffness = hz; }
-	func GetStiffness() float { return this.m_stiffness; }
+    /// Set/get stiffness in N*m
+    func SetStiffness(hz float) void { this.m_stiffness = hz; }
+    func GetStiffness() float { return this.m_stiffness; }
 
-	/// Set/get damping in N*m*s
-	func SetDamping(damping float) void { this.m_damping = damping; }
-	func GetDamping() float { return this.m_damping; }
+    /// Set/get damping in N*m*s
+    func SetDamping(damping float) void { this.m_damping = damping; }
+    func GetDamping() float { return this.m_damping; }
 
-	/// Dump to b2Log
+    /// Dump to b2Log
     // (override)
-	func Dump() void {
+    func Dump() void {
         indexA int = this.m_bodyA.m_islandIndex
         indexB int = this.m_bodyB.m_islandIndex
 
@@ -275,7 +275,7 @@ struct b2WeldJoint (
     }
 
     // (override)
-	func SolveVelocityConstraints(in data *b2SolverData) void {
+    func SolveVelocityConstraints(in data *b2SolverData) void {
         vA POD b2Vec2 = data.velocities[this.m_indexA].v
         wA float = data.velocities[this.m_indexA].w
         vB POD b2Vec2 = data.velocities[this.m_indexB].v
@@ -332,7 +332,7 @@ struct b2WeldJoint (
     }
 
     // (override)
-	func SolvePositionConstraints(in data *b2SolverData) bool {
+    func SolvePositionConstraints(in data *b2SolverData) bool {
         cA POD b2Vec2 = POD data.positions[this.m_indexA].c
         aA float = data.positions[this.m_indexA].a
         cB POD b2Vec2 = POD data.positions[this.m_indexB].c
@@ -416,12 +416,12 @@ func b2Joint\CreateRaw\b2WeldJoint(out uninitialized *b2WeldJoint, in definition
     b2Joint(uninitialized, definition as *b2JointDef)
 
     uninitialized.m_localAnchorA = definition.localAnchorA
-	uninitialized.m_localAnchorB = definition.localAnchorB
-	uninitialized.m_referenceAngle = definition.referenceAngle
-	uninitialized.m_stiffness = definition.stiffness
-	uninitialized.m_damping = definition.damping
+    uninitialized.m_localAnchorB = definition.localAnchorB
+    uninitialized.m_referenceAngle = definition.referenceAngle
+    uninitialized.m_stiffness = definition.stiffness
+    uninitialized.m_damping = definition.damping
 
-	uninitialized.m_impulse.SetZero()
+    uninitialized.m_impulse.SetZero()
 
     return uninitialized
 }

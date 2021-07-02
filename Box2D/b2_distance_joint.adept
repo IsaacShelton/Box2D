@@ -48,29 +48,29 @@ struct b2DistanceJointDef (
     struct b2JointDef,
     
     /// The local anchor point relative to bodyA's origin.
-	localAnchorA b2Vec2,
+    localAnchorA b2Vec2,
 
-	/// The local anchor point relative to bodyB's origin.
-	localAnchorB b2Vec2,
+    /// The local anchor point relative to bodyB's origin.
+    localAnchorB b2Vec2,
 
-	/// The rest length of this joint. Clamped to a stable minimum value.
-	length float,
+    /// The rest length of this joint. Clamped to a stable minimum value.
+    length float,
 
-	/// Minimum length. Clamped to a stable minimum value.
-	minLength float,
+    /// Minimum length. Clamped to a stable minimum value.
+    minLength float,
 
-	/// Maximum length. Must be greater than or equal to the minimum length.
-	maxLength float,
+    /// Maximum length. Must be greater than or equal to the minimum length.
+    maxLength float,
 
-	/// The linear stiffness in N/m.
-	stiffness float,
+    /// The linear stiffness in N/m.
+    stiffness float,
 
-	/// The linear damping in N*s/m.
-	damping float
+    /// The linear damping in N*s/m.
+    damping float
 ) {
     /// Initialize the bodies, anchors, and rest length using world space anchors.
-	/// The minimum and maximum lengths are set to the rest length.
-	func Initialize(in bA, bB *b2Body, in anchor1, anchor2 *b2Vec2) void {
+    /// The minimum and maximum lengths are set to the rest length.
+    func Initialize(in bA, bB *b2Body, in anchor1, anchor2 *b2Vec2) void {
         this.bodyA = bA
         this.bodyB = bB
         this.localAnchorA = bA.GetLocalPoint(anchor1)
@@ -102,35 +102,35 @@ struct b2DistanceJoint (
     struct b2Joint,
     
     m_stiffness float,
-	m_damping float,
-	m_bias float,
-	m_length float,
-	m_minLength float,
-	m_maxLength float,
+    m_damping float,
+    m_bias float,
+    m_length float,
+    m_minLength float,
+    m_maxLength float,
 
-	// Solver shared
-	m_localAnchorA b2Vec2,
-	m_localAnchorB b2Vec2,
-	m_gamma float,
-	m_impulse float,
-	m_lowerImpulse float,
-	m_upperImpulse float,
+    // Solver shared
+    m_localAnchorA b2Vec2,
+    m_localAnchorB b2Vec2,
+    m_gamma float,
+    m_impulse float,
+    m_lowerImpulse float,
+    m_upperImpulse float,
 
-	// Solver temp
-	m_indexA int,
-	m_indexB int,
-	m_u b2Vec2,
-	m_rA b2Vec2,
-	m_rB b2Vec2,
-	m_localCenterA b2Vec2,
-	m_localCenterB b2Vec2,
-	m_currentLength float,
-	m_invMassA float,
-	m_invMassB float,
-	m_invIA float,
-	m_invIB float,
-	m_softMass float,
-	m_mass float
+    // Solver temp
+    m_indexA int,
+    m_indexB int,
+    m_u b2Vec2,
+    m_rA b2Vec2,
+    m_rB b2Vec2,
+    m_localCenterA b2Vec2,
+    m_localCenterB b2Vec2,
+    m_currentLength float,
+    m_invMassA float,
+    m_invMassB float,
+    m_invIA float,
+    m_invIB float,
+    m_softMass float,
+    m_mass float
 ) {
     // (override)
     func GetAnchorA() b2Vec2 {
@@ -138,76 +138,76 @@ struct b2DistanceJoint (
     }
 
     // (override)
-	func GetAnchorB() b2Vec2 {
+    func GetAnchorB() b2Vec2 {
         return this.m_bodyB.GetWorldPoint(&this.m_localAnchorB)
     }
 
-	/// Get the reaction force given the inverse time step.
-	/// Unit is N.
+    /// Get the reaction force given the inverse time step.
+    /// Unit is N.
     // (override)
-	func GetReactionForce(inv_dt float) b2Vec2 {
+    func GetReactionForce(inv_dt float) b2Vec2 {
         F POD b2Vec2 = inv_dt * (this.m_impulse + this.m_lowerImpulse - this.m_upperImpulse) * this.m_u
-	    return F
+        return F
     }
 
-	/// Get the reaction torque given the inverse time step.
-	/// Unit is N*m. This is always zero for a distance joint.
+    /// Get the reaction torque given the inverse time step.
+    /// Unit is N*m. This is always zero for a distance joint.
     // (override)
-	func GetReactionTorque(_inv_dt float) float {
+    func GetReactionTorque(_inv_dt float) float {
         return 0.0f
     }
 
-	/// The local anchor point relative to bodyA's origin.
-	func GetLocalAnchorA() *b2Vec2 {
+    /// The local anchor point relative to bodyA's origin.
+    func GetLocalAnchorA() *b2Vec2 {
         return &this.m_localAnchorA
     }
 
-	/// The local anchor point relative to bodyB's origin.
-	func GetLocalAnchorB() *b2Vec2 {
+    /// The local anchor point relative to bodyB's origin.
+    func GetLocalAnchorB() *b2Vec2 {
         return &this.m_localAnchorB
     }
 
-	/// Get the rest length
-	func GetLength() float {
+    /// Get the rest length
+    func GetLength() float {
         return this.m_length
     }
 
-	/// Set the rest length
-	/// @returns clamped rest length
-	func SetLength(length float) float {
+    /// Set the rest length
+    /// @returns clamped rest length
+    func SetLength(length float) float {
         this.m_impulse = 0.0f
         this.m_length = b2Max(b2_linearSlop, length)
         return this.m_length
     }
 
-	/// Get the minimum length
-	func GetMinLength() float {
+    /// Get the minimum length
+    func GetMinLength() float {
         return this.m_minLength
     }
 
-	/// Set the minimum length
-	/// @returns the clamped minimum length
-	func SetMinLength(minLength float) float {
+    /// Set the minimum length
+    /// @returns the clamped minimum length
+    func SetMinLength(minLength float) float {
         this.m_lowerImpulse = 0.0f
-	    this.m_minLength = b2Clamp(minLength, b2_linearSlop, this.m_maxLength)
-	    return this.m_minLength
+        this.m_minLength = b2Clamp(minLength, b2_linearSlop, this.m_maxLength)
+        return this.m_minLength
     }
 
-	/// Get the maximum length
-	func GetMaxLength() float {
+    /// Get the maximum length
+    func GetMaxLength() float {
         return this.m_maxLength
     }
 
-	/// Set the maximum length
-	/// @returns the clamped maximum length
-	func SetMaxLength(maxLength float) float {
+    /// Set the maximum length
+    /// @returns the clamped maximum length
+    func SetMaxLength(maxLength float) float {
         this.m_upperImpulse = 0.0f
         this.m_maxLength = b2Max(maxLength, this.m_minLength)
         return this.m_maxLength
     }
 
-	/// Get the current length
-	func GetCurrentLength() float {
+    /// Get the current length
+    func GetCurrentLength() float {
         pA POD b2Vec2 = this.m_bodyA.GetWorldPoint(&this.m_localAnchorA)
         pB POD b2Vec2 = this.m_bodyB.GetWorldPoint(&this.m_localAnchorB)
         d POD b2Vec2 = pB - pA
@@ -215,27 +215,27 @@ struct b2DistanceJoint (
         return length
     }
 
-	/// Set/get the linear stiffness in N/m
-	func SetStiffness(stiffness float) void {
+    /// Set/get the linear stiffness in N/m
+    func SetStiffness(stiffness float) void {
         this.m_stiffness = stiffness
     }
     
-	func GetStiffness() float {
+    func GetStiffness() float {
         return this.m_stiffness
     }
 
-	/// Set/get linear damping in N*s/m
-	func SetDamping(damping float) {
+    /// Set/get linear damping in N*s/m
+    func SetDamping(damping float) {
         this.m_damping = damping
     }
 
-	func GetDamping() float {
+    func GetDamping() float {
         return this.m_damping
     }
 
-	/// Dump joint to dmLog
+    /// Dump joint to dmLog
     // (override)
-	func Dump() void {
+    func Dump() void {
         indexA int = this.m_bodyA.m_islandIndex
         indexB int = this.m_bodyB.m_islandIndex
 
@@ -253,9 +253,9 @@ struct b2DistanceJoint (
         b2Dump('  joints[%d] = m_world->CreateJoint(&jd);\n', this.m_index)
     }
 
-	///
+    ///
     // (override)
-	func Draw(draw *b2Draw) void {
+    func Draw(draw *b2Draw) void {
         xfA *b2Transform = this.m_bodyA.GetTransform()
         xfB *b2Transform = this.m_bodyB.GetTransform()
         pA POD b2Vec2 = b2Mul(xfA, this.m_localAnchorA)
@@ -382,7 +382,7 @@ struct b2DistanceJoint (
     }
 
     // (override)
-	func SolveVelocityConstraints(data *b2SolverData) void {
+    func SolveVelocityConstraints(data *b2SolverData) void {
         vA POD b2Vec2 = data.velocities[this.m_indexA].v
         wA float = data.velocities[this.m_indexA].w
         vB POD b2Vec2 = data.velocities[this.m_indexB].v
@@ -471,7 +471,7 @@ struct b2DistanceJoint (
     }
 
     // (override)
-	func SolvePositionConstraints(data *b2SolverData) bool {
+    func SolvePositionConstraints(data *b2SolverData) bool {
         cA POD b2Vec2 = data.positions[this.m_indexA].c
         aA float = data.positions[this.m_indexA].a
         cB POD b2Vec2 = data.positions[this.m_indexB].c
@@ -518,19 +518,19 @@ func b2Joint\CreateRaw\b2DistanceJoint(out uninitialized *b2DistanceJoint, in de
     b2Joint(uninitialized, definition as *b2JointDef)
 
     uninitialized.m_localAnchorA = definition.localAnchorA
-	uninitialized.m_localAnchorB = definition.localAnchorB
-	uninitialized.m_length = b2Max(definition.length, b2_linearSlop)
-	uninitialized.m_minLength = b2Max(definition.minLength, b2_linearSlop)
-	uninitialized.m_maxLength = b2Max(definition.maxLength, uninitialized.m_minLength)
-	uninitialized.m_stiffness = definition.stiffness
-	uninitialized.m_damping = definition.damping
+    uninitialized.m_localAnchorB = definition.localAnchorB
+    uninitialized.m_length = b2Max(definition.length, b2_linearSlop)
+    uninitialized.m_minLength = b2Max(definition.minLength, b2_linearSlop)
+    uninitialized.m_maxLength = b2Max(definition.maxLength, uninitialized.m_minLength)
+    uninitialized.m_stiffness = definition.stiffness
+    uninitialized.m_damping = definition.damping
 
-	uninitialized.m_gamma = 0.0f
-	uninitialized.m_bias = 0.0f
-	uninitialized.m_impulse = 0.0f
-	uninitialized.m_lowerImpulse = 0.0f
-	uninitialized.m_upperImpulse = 0.0f
-	uninitialized.m_currentLength = 0.0f
+    uninitialized.m_gamma = 0.0f
+    uninitialized.m_bias = 0.0f
+    uninitialized.m_impulse = 0.0f
+    uninitialized.m_lowerImpulse = 0.0f
+    uninitialized.m_upperImpulse = 0.0f
+    uninitialized.m_currentLength = 0.0f
 
     return uninitialized
 }

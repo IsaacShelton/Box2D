@@ -50,31 +50,31 @@ func b2Filter() b2Filter {
 /// abstract fixture definition. You can reuse fixture definitions safely.
 struct b2FixtureDef (
     /// The shape, this must be set. The shape will be cloned, so you
-	/// can create the shape on the stack.
+    /// can create the shape on the stack.
     shape *b2Shape,
 
     /// Use this to store application specific fixture data.
-	userData b2FixtureUserData,
+    userData b2FixtureUserData,
 
     /// The friction coefficient, usually in the range [0,1].
-	friction float,
+    friction float,
 
     /// The restitution (elasticity) usually in the range [0,1].
-	restitution float,
+    restitution float,
 
     /// Restitution velocity threshold, usually in m/s. Collisions above this
-	/// speed have restitution applied (will bounce).
-	restitutionThreshold float,
+    /// speed have restitution applied (will bounce).
+    restitutionThreshold float,
 
     /// The density, usually in kg/m^2.
-	density float,
+    density float,
 
     /// A sensor shape collects contact information but never generates a collision
-	/// response.
-	isSensor bool,
+    /// response.
+    isSensor bool,
 
     /// Contact filtering data.
-	filter b2Filter
+    filter b2Filter
 )
 
 /// The constructor sets the default fixture definition values.
@@ -100,33 +100,33 @@ struct b2FixtureProxy (aabb b2AABB, fixture *b2Fixture, childIndex, proxyId int)
 /// @warning you cannot reuse fixtures.
 struct b2Fixture (
     m_density float,
-	m_next *b2Fixture,
-	m_body *b2Body,
-	m_shape *b2Shape,
-	m_friction float,
-	m_restitution float,
-	m_restitutionThreshold float,
-	m_proxies *b2FixtureProxy,
-	m_proxyCount int,
-	m_filter b2Filter,
-	m_isSensor bool,
-	m_userData b2FixtureUserData
+    m_next *b2Fixture,
+    m_body *b2Body,
+    m_shape *b2Shape,
+    m_friction float,
+    m_restitution float,
+    m_restitutionThreshold float,
+    m_proxies *b2FixtureProxy,
+    m_proxyCount int,
+    m_filter b2Filter,
+    m_isSensor bool,
+    m_userData b2FixtureUserData
 ) {
     /// Get the type of the child shape. You can use this to down cast to the concrete shape.
-	/// @return the shape type.
+    /// @return the shape type.
     func GetType() b2ShapeType {
         return this.m_shape.GetType()
     }
 
     /// Get the child shape. You can modify the child shape, however you should not change the
-	/// number of vertices because this will crash some collision caching mechanisms.
-	/// Manipulating the shape may lead to non-physical behavior.
+    /// number of vertices because this will crash some collision caching mechanisms.
+    /// Manipulating the shape may lead to non-physical behavior.
     func GetShape() *b2Shape {
         return this.m_shape
     }
     
     /// Set if this fixture is a sensor.
-	func SetSensor(sensor bool) void {
+    func SetSensor(sensor bool) void {
         if sensor != this.m_isSensor {
             this.m_body.SetAwake(true)
             this.m_isSensor = sensor
@@ -134,26 +134,26 @@ struct b2Fixture (
     }
 
     /// Is this fixture a sensor (non-solid)?
-	/// @return the true if the shape is a sensor.
-	func IsSensor() bool {
+    /// @return the true if the shape is a sensor.
+    func IsSensor() bool {
         return this.m_isSensor
     }
 
     /// Set the contact filtering data. This will not update contacts until the next time
-	/// step when either parent body is active and awake.
-	/// This automatically calls Refilter.
-	func SetFilterData(filter *b2Filter) void {
+    /// step when either parent body is active and awake.
+    /// This automatically calls Refilter.
+    func SetFilterData(filter *b2Filter) void {
         this.m_filter = *filter
-	    this.Refilter()
+        this.Refilter()
     }
 
     /// Get the contact filtering data.
-	func GetFilterData() *b2Filter {
+    func GetFilterData() *b2Filter {
         return &this.m_filter
     }
 
     /// Call this if you want to establish collision that was previously disabled by b2ContactFilter::ShouldCollide.
-	func Refilter() void {
+    func Refilter() void {
         if this.m_body == null, return
 
         // Flag associated contacts for filtering.
@@ -184,99 +184,99 @@ struct b2Fixture (
     }
 
     /// Get the parent body of this fixture. This is nullptr if the fixture is not attached.
-	/// @return the parent body.
+    /// @return the parent body.
     func GetBody() *b2Body {
         return this.m_body
     }
     
     /// Get the next fixture in the parent body's fixture list.
-	/// @return the next shape.
-	func GetNext() *b2Fixture {
+    /// @return the next shape.
+    func GetNext() *b2Fixture {
         return this.m_next
     }
     
     /// Get the user data that was assigned in the fixture definition. Use this to
-	/// store your application specific data.
-	func GetUserData() *b2FixtureUserData {
+    /// store your application specific data.
+    func GetUserData() *b2FixtureUserData {
         return &this.m_userData
     }
 
     /// Test a point for containment in this fixture.
-	/// @param p a point in world coordinates.
-	func TestPoint(p *b2Vec2) bool {
+    /// @param p a point in world coordinates.
+    func TestPoint(p *b2Vec2) bool {
         return this.m_shape.TestPoint(this.m_body.GetTransform(), p)
     }
 
     /// Cast a ray against this shape.
-	/// @param output the ray-cast results.
-	/// @param input the ray-cast input parameters.
-	/// @param childIndex the child shape index (e.g. edge index)
-	func RayCast(output *b2RayCastOutput, input *b2RayCastInput, childIndex int) bool {
+    /// @param output the ray-cast results.
+    /// @param input the ray-cast input parameters.
+    /// @param childIndex the child shape index (e.g. edge index)
+    func RayCast(output *b2RayCastOutput, input *b2RayCastInput, childIndex int) bool {
         return this.m_shape.RayCast(output, input, this.m_body.GetTransform(), childIndex)
     }
 
     /// Get the mass data for this fixture. The mass data is based on the density and
-	/// the shape. The rotational inertia is about the shape's origin. This operation
-	/// may be expensive.
-	func GetMassData(massData *b2MassData) void {
+    /// the shape. The rotational inertia is about the shape's origin. This operation
+    /// may be expensive.
+    func GetMassData(massData *b2MassData) void {
         this.m_shape.ComputeMass(massData, this.m_density)
     }
 
     /// Set the density of this fixture. This will _not_ automatically adjust the mass
-	/// of the body. You must call b2Body::ResetMassData to update the body's mass.
-	func SetDensity(density float) void {
-        b2Assert(b2IsValid(density) && density >= 0.0f)
-	    this.m_density = density
+    /// of the body. You must call b2Body::ResetMassData to update the body's mass.
+    func SetDensity(density float) void {
+        b2Assert(b2IsValid(density, #get __file__, #get __line__, 'b2Assert(b2IsValid(density)') && density >= 0.0f)
+        this.m_density = density
     }
 
     /// Get the density of this fixture.
-	func GetDensity() float {
+    func GetDensity() float {
         return this.m_density
     }
 
     /// Get the coefficient of friction.
-	func GetFriction() float {
+    func GetFriction() float {
         return this.m_friction
     }
 
-	/// Set the coefficient of friction. This will _not_ change the friction of
-	/// existing contacts.
-	func SetFriction(friction float) void {
+    /// Set the coefficient of friction. This will _not_ change the friction of
+    /// existing contacts.
+    func SetFriction(friction float) void {
         this.m_friction = friction
     }
 
-	/// Get the coefficient of restitution.
-	func GetRestitution() float {
+    /// Get the coefficient of restitution.
+    func GetRestitution() float {
         return this.m_restitution
     }
 
-	/// Set the coefficient of restitution. This will _not_ change the restitution of
-	/// existing contacts.
-	func SetRestitution(restitution float) void {
+    /// Set the coefficient of restitution. This will _not_ change the restitution of
+    /// existing contacts.
+    func SetRestitution(restitution float) void {
         this.m_restitution = restitution
     }
 
-	/// Get the restitution velocity threshold.
-	func GetRestitutionThreshold() float {
+    /// Get the restitution velocity threshold.
+    func GetRestitutionThreshold() float {
         return this.m_restitutionThreshold
     }
 
-	/// Set the restitution threshold. This will _not_ change the restitution threshold of
-	/// existing contacts.
-	func SetRestitutionThreshold(threshold float) void {
+    /// Set the restitution threshold. This will _not_ change the restitution threshold of
+    /// existing contacts.
+    func SetRestitutionThreshold(threshold float) void {
         this.m_restitutionThreshold = threshold
     }
 
-	/// Get the fixture's AABB. This AABB may be enlarge and/or stale.
-	/// If you need a more accurate AABB, compute it using the shape and
-	/// the body transform.
-	func GetAABB(childIndex int) *b2AABB {
-        b2Assert(0 <= childIndex && childIndex < this.m_proxyCount)
-	    return &this.m_proxies[childIndex].aabb
+    /// Get the fixture's AABB. This AABB may be enlarge and/or stale.
+    /// If you need a more accurate AABB, compute it using the shape and
+    /// the body transform.
+    func GetAABB(childIndex int) *b2AABB {
+        b2Assert(0 <= childIndex && childIndex < this.m_proxyCount, #get __file__, #get __line__, 'b2Assert(0 <= childIndex && childIndex < this.m_proxyCount)')
+        return &this.m_proxies[childIndex].aabb
     }
 
-	/// Dump this fixture to the log file.
-	func Dump(bodyIndex int) void {
+    /// Dump this fixture to the log file.
+    func Dump(bodyIndex int) void {
         b2Dump('    b2FixtureDef fd;\n')
         b2Dump('    fd.friction = %hf;\n', this.m_friction)
         b2Dump('    fd.restitution = %hf;\n', this.m_restitution)
@@ -335,8 +335,8 @@ struct b2Fixture (
     }
 
     // We need separation create/destroy functions from the constructor/destructor because
-	// the destructor cannot access the allocator (no destructor arguments allowed by C++).
-	func Create(allocator *b2BlockAllocator, body *b2Body, definition *b2FixtureDef) void {
+    // the destructor cannot access the allocator (no destructor arguments allowed by C++).
+    func Create(allocator *b2BlockAllocator, body *b2Body, definition *b2FixtureDef) void {
         this.m_userData = definition.userData
         this.m_friction = definition.friction
         this.m_restitution = definition.restitution
@@ -364,9 +364,9 @@ struct b2Fixture (
         this.m_density = definition.density
     }
 
-	func Destroy(allocator *b2BlockAllocator) void {
+    func Destroy(allocator *b2BlockAllocator) void {
         // The proxies must be destroyed before calling this.
-        b2Assert(this.m_proxyCount == 0)
+        b2Assert(this.m_proxyCount == 0, #get __file__, #get __line__, 'b2Assert(this.m_proxyCount == 0)')
 
         // Free the proxy array.
         childCount int = this.m_shape.GetChildCount()
@@ -396,15 +396,15 @@ struct b2Fixture (
             allocator.Free(s, sizeof b2ChainShape)
 
         default
-            b2Assert(false)
+            b2Assert(false, #get __file__, #get __line__, 'b2Assert(false)')
         }
 
         this.m_shape = null
     }
 
     // These support body activation/deactivation.
-	func CreateProxies(broadPhase *b2BroadPhase, in xf *b2Transform) void {
-        b2Assert(this.m_proxyCount == 0)
+    func CreateProxies(broadPhase *b2BroadPhase, in xf *b2Transform) void {
+        b2Assert(this.m_proxyCount == 0, #get __file__, #get __line__, 'b2Assert(this.m_proxyCount == 0)')
 
         // Create proxies in the broad-phase.
         this.m_proxyCount = this.m_shape.GetChildCount()
@@ -418,7 +418,7 @@ struct b2Fixture (
         }
     }
 
-	func DestroyProxies(broadPhase *b2BroadPhase) void {
+    func DestroyProxies(broadPhase *b2BroadPhase) void {
         // Destroy proxies in the broad-phase.
         for(i int = 0; i < this.m_proxyCount; ++i){
             proxy *b2FixtureProxy = this.m_proxies at i
@@ -455,12 +455,12 @@ func b2Fixture() b2Fixture {
 
 func b2Fixture(mem ptr) *b2Fixture {
     f *b2Fixture = mem as *b2Fixture
-	f.m_body = null
-	f.m_next = null
-	f.m_proxies = null
-	f.m_proxyCount = 0
-	f.m_shape = null
-	f.m_density = 0.0f
+    f.m_body = null
+    f.m_next = null
+    f.m_proxies = null
+    f.m_proxyCount = 0
+    f.m_shape = null
+    f.m_density = 0.0f
     f.m_filter = b2Filter()
     return f
 }

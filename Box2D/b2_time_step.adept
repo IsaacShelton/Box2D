@@ -32,11 +32,11 @@ struct b2Profile (step, collide, solve, solveInit, solveVelocity, solvePosition,
 /// This is an internal structure.
 struct b2TimeStep (
     dt float,               // time step
-	inv_dt float,           // inverse time step (0 if dt == 0).
-	dtRatio float,          // dt * inv_dt0
-	velocityIterations int,
-	positionIterations int,
-	warmStarting bool
+    inv_dt float,           // inverse time step (0 if dt == 0).
+    dtRatio float,          // dt * inv_dt0
+    velocityIterations int,
+    positionIterations int,
+    warmStarting bool
 )
 
 /// This is an internal structure.

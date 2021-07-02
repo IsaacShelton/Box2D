@@ -40,14 +40,14 @@ REQUIRES:
 // Delegate of b2World.
 struct b2ContactManager (
     m_broadPhase b2BroadPhase,
-	m_contactList *b2Contact,
-	m_contactCount int,
-	m_contactFilter *b2ContactFilter,
-	m_contactListener *b2ContactListener,
-	m_allocator *b2BlockAllocator
+    m_contactList *b2Contact,
+    m_contactCount int,
+    m_contactFilter *b2ContactFilter,
+    m_contactListener *b2ContactListener,
+    m_allocator *b2BlockAllocator
 ) {
     // Broad-phase callback.
-	func AddPair(proxyUserDataA ptr, proxyUserDataB ptr) void {
+    func AddPair(proxyUserDataA ptr, proxyUserDataB ptr) void {
         proxyA *b2FixtureProxy = proxyUserDataA as *b2FixtureProxy
         proxyB *b2FixtureProxy = proxyUserDataB as *b2FixtureProxy
 
@@ -149,11 +149,11 @@ struct b2ContactManager (
         ++this.m_contactCount
     }
 
-	func FindNewContacts() void {
-	    this.m_broadPhase.UpdatePairs(this)
+    func FindNewContacts() void {
+        this.m_broadPhase.UpdatePairs(this)
     }
 
-	func Destroy(c *b2Contact) void {
+    func Destroy(c *b2Contact) void {
         fixtureA *b2Fixture = c.GetFixtureA()
         fixtureB *b2Fixture = c.GetFixtureB()
         bodyA *b2Body = fixtureA.GetBody()
@@ -192,7 +192,7 @@ struct b2ContactManager (
     // This is the top level collision call for the time step. Here
     // all the narrow phase collision is processed for the world
     // contact list.
-	func Collide() void {
+    func Collide() void {
         // Update awake contacts.
         c *b2Contact = this.m_contactList
 
@@ -258,10 +258,10 @@ func b2ContactManager() b2ContactManager {
     cm POD b2ContactManager = undef
     cm.m_broadPhase = POD b2BroadPhase()
     cm.m_contactList = null
-	cm.m_contactCount = 0
-	cm.m_contactFilter = &b2_defaultFilter
-	cm.m_contactListener = &b2_defaultListener
-	cm.m_allocator = null
+    cm.m_contactCount = 0
+    cm.m_contactFilter = &b2_defaultFilter
+    cm.m_contactListener = &b2_defaultListener
+    cm.m_allocator = null
     return cm
 }
 

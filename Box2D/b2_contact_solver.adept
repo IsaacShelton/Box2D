@@ -40,56 +40,56 @@ REQUIRES:
 
 struct b2VelocityConstraintPoint (
     rA b2Vec2,
-	rB b2Vec2,
-	normalImpulse float,
-	tangentImpulse float,
-	normalMass float,
-	tangentMass float,
-	velocityBias float
+    rB b2Vec2,
+    normalImpulse float,
+    tangentImpulse float,
+    normalMass float,
+    tangentMass float,
+    velocityBias float
 )
 
 struct b2ContactVelocityConstraint (
     points /*b2_maxManifoldPoints*/ 2 b2VelocityConstraintPoint,
-	normal b2Vec2,
-	normalMass b2Mat22,
-	K b2Mat22,
-	indexA int,
-	indexB int,
-	invMassA, invMassB float,
-	invIA, invIB float,
-	friction float,
-	restitution float,
-	threshold float,
-	tangentSpeed float,
-	pointCount int,
-	contactIndex int
+    normal b2Vec2,
+    normalMass b2Mat22,
+    K b2Mat22,
+    indexA int,
+    indexB int,
+    invMassA, invMassB float,
+    invIA, invIB float,
+    friction float,
+    restitution float,
+    threshold float,
+    tangentSpeed float,
+    pointCount int,
+    contactIndex int
 )
 
 struct b2ContactSolverDef (
     step b2TimeStep,
-	contacts **b2Contact,
-	count int,
-	positions *b2Position,
-	velocities *b2Velocity,
-	allocator *b2StackAllocator
+    contacts **b2Contact,
+    count int,
+    positions *b2Position,
+    velocities *b2Velocity,
+    allocator *b2StackAllocator
 )
 
 struct b2ContactSolver (
     m_step b2TimeStep,
-	m_positions *b2Position,
-	m_velocities *b2Velocity,
-	m_allocator *b2StackAllocator,
-	m_positionConstraints *b2ContactPositionConstraint,
-	m_velocityConstraints *b2ContactVelocityConstraint,
-	m_contacts **b2Contact,
-	m_count int
+    m_positions *b2Position,
+    m_velocities *b2Velocity,
+    m_allocator *b2StackAllocator,
+    m_positionConstraints *b2ContactPositionConstraint,
+    m_velocityConstraints *b2ContactVelocityConstraint,
+    m_contacts **b2Contact,
+    m_count int
 ) {
-	func __defer__ {
+    func __defer__ {
         this.m_allocator.Free(this.m_velocityConstraints)
-	    this.m_allocator.Free(this.m_positionConstraints)
+        this.m_allocator.Free(this.m_positionConstraints)
     }
 
-	func InitializeVelocityConstraints() void {
+    func InitializeVelocityConstraints() void {
         for(i int = 0; i < this.m_count; ++i){
             vc *b2ContactVelocityConstraint = this.m_velocityConstraints at i
             pc *b2ContactPositionConstraint = this.m_positionConstraints at i
@@ -118,7 +118,7 @@ struct b2ContactSolver (
             vB POD b2Vec2 = this.m_velocities[indexB].v
             wB float = this.m_velocities[indexB].w
 
-            b2Assert(manifold.pointCount > 0)
+            b2Assert(manifold.pointCount > 0, #get __file__, #get __line__, 'b2Assert(manifold.pointCount > 0)')
 
             xfA, xfB POD b2Transform = undef
             xfA.q.Set(aA)
@@ -193,7 +193,7 @@ struct b2ContactSolver (
         }
     }
 
-	func WarmStart() void {
+    func WarmStart() void {
         // Warm start.
         for(i int = 0; i < this.m_count; ++i){
             vc *b2ContactVelocityConstraint = this.m_velocityConstraints at i
@@ -230,7 +230,7 @@ struct b2ContactSolver (
         }
     }
 
-	func SolveVelocityConstraints() void {
+    func SolveVelocityConstraints() void {
         for(i int = 0; i < this.m_count; ++i){
             vc *b2ContactVelocityConstraint = this.m_velocityConstraints at i
 
@@ -251,7 +251,7 @@ struct b2ContactSolver (
             tangent POD b2Vec2 = b2Cross(normal, 1.0f)
             friction float = vc.friction
 
-            b2Assert(pointCount == 1 || pointCount == 2)
+            b2Assert(pointCount == 1 || pointCount == 2, #get __file__, #get __line__, 'b2Assert(pointCount == 1 || pointCount == 2)')
 
             // Solve tangent constraints first because non-penetration is more important
             // than friction.
@@ -344,7 +344,7 @@ struct b2ContactSolver (
                 cp2 *b2VelocityConstraintPoint = vc.points at 1
 
                 a POD b2Vec2 = POD b2Vec2(cp1.normalImpulse, cp2.normalImpulse)
-                b2Assert(a.x >= 0.0f && a.y >= 0.0f)
+                b2Assert(a.x >= 0.0f && a.y >= 0.0f, #get __file__, #get __line__, 'b2Assert(a.x >= 0.0f && a.y >= 0.0f)')
 
                 // Relative velocity at contact
                 dv1 POD b2Vec2 = vB + b2Cross(wB, cp1.rB) - vA - b2Cross(wA, cp1.rA)
@@ -401,8 +401,8 @@ struct b2ContactSolver (
                         vn1 = b2Dot(dv1, normal)
                         vn2 = b2Dot(dv2, normal)
 
-                        b2Assert(b2Abs(vn1 - cp1.velocityBias) < _k_errorTol)
-                        b2Assert(b2Abs(vn2 - cp2.velocityBias) < _k_errorTol)
+                        b2Assert(b2Abs(vn1 - cp1.velocityBias, #get __file__, #get __line__, 'b2Assert(b2Abs(vn1 - cp1.velocityBias)') < _k_errorTol)
+                        b2Assert(b2Abs(vn2 - cp2.velocityBias, #get __file__, #get __line__, 'b2Assert(b2Abs(vn2 - cp2.velocityBias)') < _k_errorTol)
                         #end
                         break
                     }
@@ -441,7 +441,7 @@ struct b2ContactSolver (
                         // Compute normal velocity
                         vn1 = b2Dot(dv1, normal)
 
-                        b2Assert(b2Abs(vn1 - cp1.velocityBias) < _k_errorTol)
+                        b2Assert(b2Abs(vn1 - cp1.velocityBias, #get __file__, #get __line__, 'b2Assert(b2Abs(vn1 - cp1.velocityBias)') < _k_errorTol)
                         #end
                         break
                     }
@@ -482,7 +482,7 @@ struct b2ContactSolver (
                         // Compute normal velocity
                         vn2 = b2Dot(dv2, normal)
 
-                        b2Assert(b2Abs(vn2 - cp2.velocityBias) < _k_errorTol)
+                        b2Assert(b2Abs(vn2 - cp2.velocityBias, #get __file__, #get __line__, 'b2Assert(b2Abs(vn2 - cp2.velocityBias)') < _k_errorTol)
                         #end
                         break
                     }
@@ -528,7 +528,7 @@ struct b2ContactSolver (
         }
     }
 
-	func StoreImpulses() void {
+    func StoreImpulses() void {
         for(i int = 0; i < this.m_count; ++i){
             vc *b2ContactVelocityConstraint = this.m_velocityConstraints at i
             manifold *b2Manifold = this.m_contacts[vc.contactIndex].GetManifold()
@@ -541,7 +541,7 @@ struct b2ContactSolver (
     }
 
     // Sequential solver.
-	func SolvePositionConstraints() bool {
+    func SolvePositionConstraints() bool {
         minSeparation float = 0.0f
 
         for(i int = 0; i < this.m_count; ++i){
@@ -616,7 +616,7 @@ struct b2ContactSolver (
         return minSeparation >= -3.0f * b2_linearSlop
     }
 
-	func SolveTOIPositionConstraints(toiIndexA, toiIndexB int) bool {
+    func SolveTOIPositionConstraints(toiIndexA, toiIndexB int) bool {
         minSeparation float = 0.0f
 
         for(i int = 0; i < this.m_count; ++i){
@@ -704,84 +704,84 @@ struct b2ContactSolver (
 
 func b2ContactSolver(out uninitialized *b2ContactSolver, definition *b2ContactSolverDef) void {
     uninitialized.m_step = definition.step
-	uninitialized.m_allocator = definition.allocator
-	uninitialized.m_count = definition.count
-	uninitialized.m_positionConstraints = uninitialized.m_allocator.Allocate(uninitialized.m_count * sizeof b2ContactPositionConstraint) as *b2ContactPositionConstraint
-	uninitialized.m_velocityConstraints = uninitialized.m_allocator.Allocate(uninitialized.m_count * sizeof b2ContactVelocityConstraint) as *b2ContactVelocityConstraint
-	uninitialized.m_positions = definition.positions
-	uninitialized.m_velocities = definition.velocities
-	uninitialized.m_contacts = definition.contacts
+    uninitialized.m_allocator = definition.allocator
+    uninitialized.m_count = definition.count
+    uninitialized.m_positionConstraints = uninitialized.m_allocator.Allocate(uninitialized.m_count * sizeof b2ContactPositionConstraint) as *b2ContactPositionConstraint
+    uninitialized.m_velocityConstraints = uninitialized.m_allocator.Allocate(uninitialized.m_count * sizeof b2ContactVelocityConstraint) as *b2ContactVelocityConstraint
+    uninitialized.m_positions = definition.positions
+    uninitialized.m_velocities = definition.velocities
+    uninitialized.m_contacts = definition.contacts
 
-	// Initialize position independent portions of the constraints.
-	for(i int = 0; i < uninitialized.m_count; ++i){
-		contact *b2Contact = uninitialized.m_contacts[i]
+    // Initialize position independent portions of the constraints.
+    for(i int = 0; i < uninitialized.m_count; ++i){
+        contact *b2Contact = uninitialized.m_contacts[i]
 
-		fixtureA *b2Fixture = contact.m_fixtureA
-		fixtureB *b2Fixture = contact.m_fixtureB
-		shapeA *b2Shape = fixtureA.GetShape()
-		shapeB *b2Shape = fixtureB.GetShape()
-		radiusA float = shapeA.m_radius
-		radiusB float = shapeB.m_radius
-		bodyA *b2Body = fixtureA.GetBody()
-		bodyB *b2Body = fixtureB.GetBody()
-		manifold *b2Manifold = contact.GetManifold()
+        fixtureA *b2Fixture = contact.m_fixtureA
+        fixtureB *b2Fixture = contact.m_fixtureB
+        shapeA *b2Shape = fixtureA.GetShape()
+        shapeB *b2Shape = fixtureB.GetShape()
+        radiusA float = shapeA.m_radius
+        radiusB float = shapeB.m_radius
+        bodyA *b2Body = fixtureA.GetBody()
+        bodyB *b2Body = fixtureB.GetBody()
+        manifold *b2Manifold = contact.GetManifold()
 
-		pointCount int = manifold.pointCount
-		b2Assert(pointCount > 0)
+        pointCount int = manifold.pointCount
+        b2Assert(pointCount > 0, #get __file__, #get __line__, 'b2Assert(pointCount > 0)')
 
-		vc *b2ContactVelocityConstraint = uninitialized.m_velocityConstraints at i
-		vc.friction = contact.m_friction
-		vc.restitution = contact.m_restitution
-		vc.threshold = contact.m_restitutionThreshold
-		vc.tangentSpeed = contact.m_tangentSpeed
-		vc.indexA = bodyA.m_islandIndex
-		vc.indexB = bodyB.m_islandIndex
-		vc.invMassA = bodyA.m_invMass
-		vc.invMassB = bodyB.m_invMass
-		vc.invIA = bodyA.m_invI
-		vc.invIB = bodyB.m_invI
-		vc.contactIndex = i
-		vc.pointCount = pointCount
-		vc.K.SetZero()
-		vc.normalMass.SetZero()
+        vc *b2ContactVelocityConstraint = uninitialized.m_velocityConstraints at i
+        vc.friction = contact.m_friction
+        vc.restitution = contact.m_restitution
+        vc.threshold = contact.m_restitutionThreshold
+        vc.tangentSpeed = contact.m_tangentSpeed
+        vc.indexA = bodyA.m_islandIndex
+        vc.indexB = bodyB.m_islandIndex
+        vc.invMassA = bodyA.m_invMass
+        vc.invMassB = bodyB.m_invMass
+        vc.invIA = bodyA.m_invI
+        vc.invIB = bodyB.m_invI
+        vc.contactIndex = i
+        vc.pointCount = pointCount
+        vc.K.SetZero()
+        vc.normalMass.SetZero()
 
-		pc *b2ContactPositionConstraint = uninitialized.m_positionConstraints at i
-		pc.indexA = bodyA.m_islandIndex
-		pc.indexB = bodyB.m_islandIndex
-		pc.invMassA = bodyA.m_invMass
-		pc.invMassB = bodyB.m_invMass
-		pc.localCenterA = bodyA.m_sweep.localCenter
-		pc.localCenterB = bodyB.m_sweep.localCenter
-		pc.invIA = bodyA.m_invI
-		pc.invIB = bodyB.m_invI
-		pc.localNormal = manifold.localNormal
-		pc.localPoint = manifold.localPoint
-		pc.pointCount = pointCount
-		pc.radiusA = radiusA
-		pc.radiusB = radiusB
-		pc.type = manifold.type
+        pc *b2ContactPositionConstraint = uninitialized.m_positionConstraints at i
+        pc.indexA = bodyA.m_islandIndex
+        pc.indexB = bodyB.m_islandIndex
+        pc.invMassA = bodyA.m_invMass
+        pc.invMassB = bodyB.m_invMass
+        pc.localCenterA = bodyA.m_sweep.localCenter
+        pc.localCenterB = bodyB.m_sweep.localCenter
+        pc.invIA = bodyA.m_invI
+        pc.invIB = bodyB.m_invI
+        pc.localNormal = manifold.localNormal
+        pc.localPoint = manifold.localPoint
+        pc.pointCount = pointCount
+        pc.radiusA = radiusA
+        pc.radiusB = radiusB
+        pc.type = manifold.type
 
-		for(j int = 0; j < pointCount; ++j){
-			cp *b2ManifoldPoint = manifold.points at j
-			vcp *b2VelocityConstraintPoint = vc.points at j
-	
-			if uninitialized.m_step.warmStarting {
-				vcp.normalImpulse = uninitialized.m_step.dtRatio * cp.normalImpulse
-				vcp.tangentImpulse = uninitialized.m_step.dtRatio * cp.tangentImpulse
-			} else {
-				vcp.normalImpulse = 0.0f
-				vcp.tangentImpulse = 0.0f
-			}
+        for(j int = 0; j < pointCount; ++j){
+            cp *b2ManifoldPoint = manifold.points at j
+            vcp *b2VelocityConstraintPoint = vc.points at j
+    
+            if uninitialized.m_step.warmStarting {
+                vcp.normalImpulse = uninitialized.m_step.dtRatio * cp.normalImpulse
+                vcp.tangentImpulse = uninitialized.m_step.dtRatio * cp.tangentImpulse
+            } else {
+                vcp.normalImpulse = 0.0f
+                vcp.tangentImpulse = 0.0f
+            }
 
-			vcp.rA.SetZero()
-			vcp.rB.SetZero()
-			vcp.normalMass = 0.0f
-			vcp.tangentMass = 0.0f
-			vcp.velocityBias = 0.0f
+            vcp.rA.SetZero()
+            vcp.rB.SetZero()
+            vcp.normalMass = 0.0f
+            vcp.tangentMass = 0.0f
+            vcp.velocityBias = 0.0f
 
-			pc.localPoints[j] = cp.localPoint
-		}
-	}
+            pc.localPoints[j] = cp.localPoint
+        }
+    }
 }
 
 // ----------------------------------------------------
@@ -804,18 +804,18 @@ struct b2ContactPositionConstraint (
 
 struct b2PositionSolverManifold (normal, point b2Vec2, separation float) {
     func Initialize(pc *b2ContactPositionConstraint, in xfA, xfB *b2Transform, index int) void {
-		b2Assert(pc.pointCount > 0)
+        b2Assert(pc.pointCount > 0, #get __file__, #get __line__, 'b2Assert(pc.pointCount > 0)')
 
-		switch pc.type {
-		case b2ManifoldType::e_circles
+        switch pc.type {
+        case b2ManifoldType::e_circles
             pointA POD b2Vec2 = POD b2Mul(xfA, pc.localPoint)
             pointB POD b2Vec2 = POD b2Mul(xfB, pc.localPoints[0])
             this.normal = pointB - pointA
             this.normal.Normalize()
             this.point = 0.5f * (pointA + pointB)
             this.separation = b2Dot(pointB - pointA, this.normal) - pc.radiusA - pc.radiusB
-			
-		case b2ManifoldType::e_faceA
+            
+        case b2ManifoldType::e_faceA
             this.normal = POD b2Mul(xfA.q, pc.localNormal)
             planePoint POD b2Vec2 = POD b2Mul(xfA, pc.localPoint)
 
@@ -823,7 +823,7 @@ struct b2PositionSolverManifold (normal, point b2Vec2, separation float) {
             this.separation = b2Dot(clipPoint - planePoint, this.normal) - pc.radiusA - pc.radiusB
             this.point = clipPoint
             
-		case b2ManifoldType::e_faceB
+        case b2ManifoldType::e_faceB
             this.normal = b2Mul(xfB.q, pc.localNormal)
             planePoint POD b2Vec2 = POD b2Mul(xfB, pc.localPoint)
 

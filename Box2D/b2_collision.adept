@@ -98,9 +98,9 @@ struct b2WorldManifold (
     separations 2 /* b2_maxManifoldPoints */ float
 ) {
     /// Evaluate the manifold with supplied transforms. This assumes
-	/// modest motion from the original state. This does not change the
-	/// point count, impulses, etc. The radii must come from the shapes
-	/// that generated the manifold.
+    /// modest motion from the original state. This does not change the
+    /// point count, impulses, etc. The radii must come from the shapes
+    /// that generated the manifold.
     func Initialize(manifold *b2Manifold, in xfA *b2Transform, radiusA float, in xfB *b2Transform, radiusB float) void {
         if manifold.pointCount == 0, return
 
@@ -142,11 +142,11 @@ struct b2WorldManifold (
                 cB POD b2Vec2 = clipPoint + (radiusB - b2Dot(clipPoint - planePoint, this.normal)) * this.normal
                 cA POD b2Vec2 = clipPoint - radiusA * this.normal
                 this.points[i] = 0.5f * (cA + cB)
-				this.separations[i] = b2Dot(cA - cB, this.normal)
+                this.separations[i] = b2Dot(cA - cB, this.normal)
             }
 
             // Ensure normal points from A to B.
-			this.normal = this.normal.Negated()
+            this.normal = this.normal.Negated()
         }
     }
 }
@@ -171,37 +171,37 @@ func b2GetPointStates(
     define state2 = *state2_ref
 
     for(i int = 0; i < b2_maxManifoldPoints; ++i){
-		state1[i] = b2PointState::b2_nullState
-		state2[i] = b2PointState::b2_nullState
-	}
+        state1[i] = b2PointState::b2_nullState
+        state2[i] = b2PointState::b2_nullState
+    }
 
-	// Detect persists and removes.
-	for(i int = 0; i < manifold1.pointCount; ++i){
-		id POD b2ContactID = manifold1.points[i].id
+    // Detect persists and removes.
+    for(i int = 0; i < manifold1.pointCount; ++i){
+        id POD b2ContactID = manifold1.points[i].id
 
-		state1[i] = b2PointState::b2_removeState
+        state1[i] = b2PointState::b2_removeState
 
-		for(j int = 0; j < manifold2.pointCount; ++j){
-			if manifold2.points[j].id.key == id.key {
-				state1[i] = b2PointState::b2_persistState
-				break
-			}
-		}
-	}
+        for(j int = 0; j < manifold2.pointCount; ++j){
+            if manifold2.points[j].id.key == id.key {
+                state1[i] = b2PointState::b2_persistState
+                break
+            }
+        }
+    }
 
-	// Detect persists and adds.
-	for(i int = 0; i < manifold2.pointCount; ++i){
-		id POD b2ContactID = manifold2.points[i].id
+    // Detect persists and adds.
+    for(i int = 0; i < manifold2.pointCount; ++i){
+        id POD b2ContactID = manifold2.points[i].id
 
-		state2[i] = b2PointState::b2_addState
+        state2[i] = b2PointState::b2_addState
 
-		for(j int = 0; j < manifold1.pointCount; ++j){
-			if manifold1.points[j].id.key == id.key {
-				state2[i] = b2PointState::b2_persistState
-				break
-			}
-		}
-	}
+        for(j int = 0; j < manifold1.pointCount; ++j){
+            if manifold1.points[j].id.key == id.key {
+                state2[i] = b2PointState::b2_persistState
+                break
+            }
+        }
+    }
 }
 
 /// Used for computing contact manifolds.
@@ -254,10 +254,10 @@ struct b2AABB (
     func Contains(in aabb *b2AABB) bool {
         result bool = true
         result = result && this.lowerBound.x <= aabb.lowerBound.x
-		result = result && this.lowerBound.y <= aabb.lowerBound.y
-		result = result && aabb.upperBound.x <= this.upperBound.x
-		result = result && aabb.upperBound.y <= this.upperBound.y
-		return result
+        result = result && this.lowerBound.y <= aabb.lowerBound.y
+        result = result && aabb.upperBound.x <= this.upperBound.x
+        result = result && aabb.upperBound.y <= this.upperBound.y
+        return result
     }
 
     // From Real-time Collision Detection, p179.
@@ -329,33 +329,33 @@ func b2ClipSegmentToLine(
     define vIn  = *vIn_ref
 
     // Start with no output points
-	count int = 0
+    count int = 0
 
-	// Calculate the distance of end points to the line
-	distance0 float = b2Dot(normal, vIn[0].v) - offset
-	distance1 float = b2Dot(normal, vIn[1].v) - offset
+    // Calculate the distance of end points to the line
+    distance0 float = b2Dot(normal, vIn[0].v) - offset
+    distance1 float = b2Dot(normal, vIn[1].v) - offset
 
-	// If the points are behind the plane
-	if distance0 <= 0.0f, vOut[count++] = vIn[0]
-	if distance1 <= 0.0f, vOut[count++] = vIn[1]
+    // If the points are behind the plane
+    if distance0 <= 0.0f, vOut[count++] = vIn[0]
+    if distance1 <= 0.0f, vOut[count++] = vIn[1]
 
-	// If the points are on different sides of the plane
-	if distance0 * distance1 < 0.0f {
-		// Find intersection point of edge and plane
-		interp float = distance0 / (distance0 - distance1)
-		vOut[count].v = vIn[0].v + interp * (vIn[1].v - vIn[0].v)
+    // If the points are on different sides of the plane
+    if distance0 * distance1 < 0.0f {
+        // Find intersection point of edge and plane
+        interp float = distance0 / (distance0 - distance1)
+        vOut[count].v = vIn[0].v + interp * (vIn[1].v - vIn[0].v)
 
-		// VertexA is hitting edgeB.
-		vOut[count].id.cf.indexA = cast ubyte vertexIndexA
-		vOut[count].id.cf.indexB = vIn[0].id.cf.indexB
-		vOut[count].id.cf.typeA = cast ubyte b2ContactFeatureType::e_vertex
-		vOut[count].id.cf.typeB = cast ubyte b2ContactFeatureType::e_face
-		++count
+        // VertexA is hitting edgeB.
+        vOut[count].id.cf.indexA = cast ubyte vertexIndexA
+        vOut[count].id.cf.indexB = vIn[0].id.cf.indexB
+        vOut[count].id.cf.typeA = cast ubyte b2ContactFeatureType::e_vertex
+        vOut[count].id.cf.typeB = cast ubyte b2ContactFeatureType::e_face
+        ++count
 
-		b2Assert(count == 2)
-	}
+        b2Assert(count == 2, #get __file__, #get __line__, 'b2Assert(count == 2)')
+    }
 
-	return count
+    return count
 }
 
 /// Determine if two generic shapes overlap.
@@ -367,25 +367,25 @@ func b2TestOverlap(
     in xfA, in xfB *b2Transform
 ) bool {
     input POD b2DistanceInput = undef
-	input.proxyA.Set(shapeA, indexA)
-	input.proxyB.Set(shapeB, indexB)
-	input.transformA = *xfA
-	input.transformB = *xfB
-	input.useRadii = true
+    input.proxyA.Set(shapeA, indexA)
+    input.proxyB.Set(shapeB, indexB)
+    input.transformA = *xfA
+    input.transformB = *xfB
+    input.useRadii = true
 
-	cache POD b2SimplexCache = undef
-	cache.count = 0
+    cache POD b2SimplexCache = undef
+    cache.count = 0
 
-	output POD b2DistanceOutput = undef
+    output POD b2DistanceOutput = undef
 
-	b2Distance(&output, &cache, &input)
+    b2Distance(&output, &cache, &input)
 
-	return output.distance < 10.0f * b2_epsilon
+    return output.distance < 10.0f * b2_epsilon
 }
 
 func b2TestOverlap(in a, in b *b2AABB) bool {
     d1 POD b2Vec2 = b.lowerBound - a.upperBound
-	d2 POD b2Vec2 = a.lowerBound - b.upperBound
+    d2 POD b2Vec2 = a.lowerBound - b.upperBound
 
     if d1.x > 0.0f || d1.y > 0.0f, return false
     if d2.x > 0.0f || d2.y > 0.0f, return false

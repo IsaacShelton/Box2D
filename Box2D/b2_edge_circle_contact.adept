@@ -27,7 +27,7 @@ import "b2_contact.adept"
 
 struct b2EdgeAndCircleContact (struct b2Contact) {
     // (override)
-	func Evaluate(manifold *b2Manifold, in xfA, xfB *b2Transform) void {
+    func Evaluate(manifold *b2Manifold, in xfA, xfB *b2Transform) void {
         b2CollideEdgeAndCircle(manifold, this.m_fixtureA.GetShape() as *b2EdgeShape, xfA, this.m_fixtureB.GetShape() as *b2CircleShape, xfB)
     }
 }
@@ -38,12 +38,12 @@ func b2EdgeAndCircleContact\Create(fixtureA *b2Fixture, _indexA int, fixtureB *b
 
 func b2EdgeAndCircleContact\Destroy(contact *b2Contact, allocator *b2BlockAllocator) void {
     (contact as *b2EdgeAndCircleContact).__defer__()
-	allocator.Free(contact, sizeof b2EdgeAndCircleContact)
+    allocator.Free(contact, sizeof b2EdgeAndCircleContact)
 }
 
 func b2EdgeAndCircleContact(uninitialized *b2EdgeAndCircleContact, fixtureA *b2Fixture, fixtureB *b2Fixture) *b2EdgeAndCircleContact {
     b2Contact(uninitialized, false, fixtureA, 0, fixtureB, 0)
-    b2Assert(uninitialized.m_fixtureA.GetType() == b2ShapeType::e_edge)
-	b2Assert(uninitialized.m_fixtureB.GetType() == b2ShapeType::e_circle)
+    b2Assert(uninitialized.m_fixtureA.GetType(, #get __file__, #get __line__, 'b2Assert(uninitialized.m_fixtureA.GetType()') == b2ShapeType::e_edge)
+    b2Assert(uninitialized.m_fixtureB.GetType(, #get __file__, #get __line__, 'b2Assert(uninitialized.m_fixtureB.GetType()') == b2ShapeType::e_circle)
     return uninitialized
 }

@@ -56,13 +56,13 @@ struct b2BlockAllocator (
     func Allocate(size int) ptr {
         if size == 0, return null
 
-        b2Assert(0 < size)
+        b2Assert(0 < size, #get __file__, #get __line__, 'b2Assert(0 < size)')
 
         if size > b2_maxBlockSize, return b2Alloc(size)
 
         b2_sizeMap_values *ubyte = cast *ubyte &b2_block_allocator\b2_sizeMap._opaque_values
         index int = b2_sizeMap_values[size]
-        b2Assert(0 <= index && index < b2_blockSizeCount)
+        b2Assert(0 <= index && index < b2_blockSizeCount, #get __file__, #get __line__, 'b2Assert(0 <= index && index < b2_blockSizeCount)')
 
         if this.m_freeLists[index] {
             block *b2_block_allocator\b2Block = this.m_freeLists[index]
@@ -89,7 +89,7 @@ struct b2BlockAllocator (
         blockSize int = b2_block_allocator\b2_blockSizes[index]
         chunk.blockSize = blockSize
         blockCount int = b2_chunkSize / blockSize
-        b2Assert(blockCount * blockSize <= b2_chunkSize)
+        b2Assert(blockCount * blockSize <= b2_chunkSize, #get __file__, #get __line__, 'b2Assert(blockCount * blockSize <= b2_chunkSize)')
 
         for(i int = 0; i < blockCount - 1; ++i){
             block *b2_block_allocator\b2Block = chunk.blocks as *ubyte at (blockSize * i) as *b2_block_allocator\b2Block
@@ -109,7 +109,7 @@ struct b2BlockAllocator (
     func Free(p ptr, size int) void {
         if size == 0, return
 
-        b2Assert(0 < size)
+        b2Assert(0 < size, #get __file__, #get __line__, 'b2Assert(0 < size)')
 
         if size > b2_maxBlockSize {
             b2Free(p)
@@ -118,7 +118,7 @@ struct b2BlockAllocator (
 
         b2_sizeMap_values *ubyte = cast *ubyte &b2_block_allocator\b2_sizeMap._opaque_values
         index int = b2_sizeMap_values[size]
-        b2Assert(0 <= index && index < b2_blockSizeCount)
+        b2Assert(0 <= index && index < b2_blockSizeCount, #get __file__, #get __line__, 'b2Assert(0 <= index && index < b2_blockSizeCount)')
 
         #if b2_DEBUG
         // Verify the memory address and size is valid.
@@ -129,7 +129,7 @@ struct b2BlockAllocator (
             chunk *b2_block_allocator\b2Chunk = this.m_chunks at i
 
             if chunk.blockSize != blockSize {
-                b2Assert(p as *ubyte at blockSize <= chunk.blocks as *ubyte || chunk.blocks as *ubyte at b2_chunkSize <= p as *ubyte)
+                b2Assert(p as *ubyte at blockSize <= chunk.blocks as *ubyte || chunk.blocks as *ubyte at b2_chunkSize <= p as *ubyte, #get __file__, #get __line__, 'b2Assert(p as *ubyte at blockSize <= chunk.blocks as *ubyte || chunk.blocks as *ubyte at b2_chunkSize <= p as *ubyte)')
             } else {
                 if chunk.blocks as *ubyte <= p as *ubyte && p as *ubyte at blockSize <= chunk.blocks as *ubyte at b2_chunkSize {
                     found = true
@@ -137,7 +137,7 @@ struct b2BlockAllocator (
             }
         }
 
-        b2Assert(found)
+        b2Assert(found, #get __file__, #get __line__, 'b2Assert(found)')
         memset(p, 0xfd, blockSize)
         #end
 
@@ -160,14 +160,14 @@ struct b2BlockAllocator (
 func b2BlockAllocator() b2BlockAllocator {
     b POD b2BlockAllocator = undef
 
-    b2Assert(b2_blockSizeCount < 255)
+    b2Assert(b2_blockSizeCount < 255, #get __file__, #get __line__, 'b2Assert(b2_blockSizeCount < 255)')
 
     b.m_chunkSpace = b2_chunkArrayIncrement
     b.m_chunkCount = 0
     b.m_chunks = b2Alloc(b.m_chunkSpace * sizeof b2_block_allocator\b2Chunk) as *b2_block_allocator\b2Chunk
 
     memset(b.m_chunks, 0, b.m_chunkSpace * sizeof b2_block_allocator\b2Chunk)
-	memset(&b.m_freeLists, 0, sizeof(b.m_freeLists))
+    memset(&b.m_freeLists, 0, sizeof(b.m_freeLists))
     return b
 }
 
@@ -177,20 +177,20 @@ namespace b2_block_allocator {
     
     func b2_blockSizes_make() 14 int {
         sizes 14 int = undef
-        sizes[00] = 16		// 0
-        sizes[01] = 32		// 1
-        sizes[02] = 64		// 2
-        sizes[03] = 96		// 3
-        sizes[04] = 128 	// 4
-        sizes[05] = 160 	// 5
-        sizes[06] = 192 	// 6
-        sizes[07] = 224 	// 7
-        sizes[08] = 256 	// 8
-        sizes[09] = 320 	// 9
-        sizes[10] = 384 	// 10
-        sizes[11] = 448 	// 11
-        sizes[12] = 512 	// 12
-        sizes[13] = 640 	// 13
+        sizes[00] = 16        // 0
+        sizes[01] = 32        // 1
+        sizes[02] = 64        // 2
+        sizes[03] = 96        // 3
+        sizes[04] = 128     // 4
+        sizes[05] = 160     // 5
+        sizes[06] = 192     // 6
+        sizes[07] = 224     // 7
+        sizes[08] = 256     // 8
+        sizes[09] = 320     // 9
+        sizes[10] = 384     // 10
+        sizes[11] = 448     // 11
+        sizes[12] = 512     // 12
+        sizes[13] = 640     // 13
         return sizes
     }
 
@@ -209,14 +209,14 @@ namespace b2_block_allocator {
         values[0] = 0
 
         for(i int = 1; i <= b2_maxBlockSize; ++i){
-            b2Assert(j < b2_blockSizeCount)
+            b2Assert(j < b2_blockSizeCount, #get __file__, #get __line__, 'b2Assert(j < b2_blockSizeCount)')
             
-			if i <= b2_block_allocator\b2_blockSizes[j] {
-				values[i] = cast ubyte j
-			} else {
-				++j
-				values[i] = cast ubyte j
-			}
+            if i <= b2_block_allocator\b2_blockSizes[j] {
+                values[i] = cast ubyte j
+            } else {
+                ++j
+                values[i] = cast ubyte j
+            }
         }
 
         return m

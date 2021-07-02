@@ -36,22 +36,22 @@ func b2CollideCircles(
     manifold.pointCount = 0
 
     pA POD b2Vec2 = b2Mul(xfA, circleA.m_p)
-	pB POD b2Vec2 = b2Mul(xfB, circleB.m_p)
+    pB POD b2Vec2 = b2Mul(xfB, circleB.m_p)
 
     d POD b2Vec2 = pB - pA
-	distSqr float = b2Dot(d, d)
-	rA float = circleA.m_radius
+    distSqr float = b2Dot(d, d)
+    rA float = circleA.m_radius
     rB float = circleB.m_radius
-	radius float = rA + rB
-	if distSqr > radius * radius, return
+    radius float = rA + rB
+    if distSqr > radius * radius, return
 
     manifold.type = b2ManifoldType::e_circles
-	manifold.localPoint = circleA.m_p
-	manifold.localNormal.SetZero()
-	manifold.pointCount = 1
+    manifold.localPoint = circleA.m_p
+    manifold.localNormal.SetZero()
+    manifold.pointCount = 1
 
     manifold.points[0].localPoint = circleB.m_p
-	manifold.points[0].id.key = 0
+    manifold.points[0].id.key = 0
 }
 
 /// Compute the collision manifold between a polygon and a circle.
@@ -64,79 +64,79 @@ func b2CollidePolygonAndCircle(
 ) void {
     manifold.pointCount = 0
 
-	// Compute circle position in the frame of the polygon.
-	c POD b2Vec2 = b2Mul(xfB, circleB.m_p)
-	cLocal POD b2Vec2 = b2MulT(xfA, c)
+    // Compute circle position in the frame of the polygon.
+    c POD b2Vec2 = b2Mul(xfB, circleB.m_p)
+    cLocal POD b2Vec2 = b2MulT(xfA, c)
 
-	// Find the min separating edge.
-	normalIndex int = 0
-	separation float = 0.0f - b2_maxFloat
-	radius float = polygonA.m_radius + circleB.m_radius
-	vertexCount int = polygonA.m_count
-	vertices *b2Vec2 = polygonA.m_vertices at 0
-	normals *b2Vec2 = polygonA.m_normals at 0
+    // Find the min separating edge.
+    normalIndex int = 0
+    separation float = 0.0f - b2_maxFloat
+    radius float = polygonA.m_radius + circleB.m_radius
+    vertexCount int = polygonA.m_count
+    vertices *b2Vec2 = polygonA.m_vertices at 0
+    normals *b2Vec2 = polygonA.m_normals at 0
 
-	for(i int = 0; i < vertexCount; ++i){
-		s float = b2Dot(normals[i], cLocal - vertices[i])
+    for(i int = 0; i < vertexCount; ++i){
+        s float = b2Dot(normals[i], cLocal - vertices[i])
 
-		if s > radius, return
+        if s > radius, return
 
-		if s > separation {
-			separation = s
-			normalIndex = i
-		}
-	}
+        if s > separation {
+            separation = s
+            normalIndex = i
+        }
+    }
 
-	// Vertices that subtend the incident face.
-	vertIndex1 int = normalIndex
-	vertIndex2 int = vertIndex1 + 1 < vertexCount ? vertIndex1 + 1 : 0
-	v1 POD b2Vec2 = vertices[vertIndex1]
-	v2 POD b2Vec2 = vertices[vertIndex2]
+    // Vertices that subtend the incident face.
+    vertIndex1 int = normalIndex
+    vertIndex2 int = vertIndex1 + 1 < vertexCount ? vertIndex1 + 1 : 0
+    v1 POD b2Vec2 = vertices[vertIndex1]
+    v2 POD b2Vec2 = vertices[vertIndex2]
 
-	// If the center is inside the polygon ...
-	if separation < b2_epsilon {
-		manifold.pointCount = 1
-		manifold.type = b2ManifoldType::e_faceA
-		manifold.localNormal = normals[normalIndex]
-		manifold.localPoint = (v1 + v2) * 0.5f
-		manifold.points[0].localPoint = circleB.m_p
-		manifold.points[0].id.key = 0
-		return
-	}
+    // If the center is inside the polygon ...
+    if separation < b2_epsilon {
+        manifold.pointCount = 1
+        manifold.type = b2ManifoldType::e_faceA
+        manifold.localNormal = normals[normalIndex]
+        manifold.localPoint = (v1 + v2) * 0.5f
+        manifold.points[0].localPoint = circleB.m_p
+        manifold.points[0].id.key = 0
+        return
+    }
 
-	// Compute barycentric coordinates
-	u1 float = b2Dot(cLocal - v1, v2 - v1)
-	u2 float = b2Dot(cLocal - v2, v1 - v2)
-	if u1 <= 0.0f {
-		if b2DistanceSquared(cLocal, v1) > radius * radius, return
+    // Compute barycentric coordinates
+    u1 float = b2Dot(cLocal - v1, v2 - v1)
+    u2 float = b2Dot(cLocal - v2, v1 - v2)
+    if u1 <= 0.0f {
+        if b2DistanceSquared(cLocal, v1) > radius * radius, return
 
-		manifold.pointCount = 1
-		manifold.type = b2ManifoldType::e_faceA
-		manifold.localNormal = cLocal - v1
-		manifold.localNormal.Normalize()
-		manifold.localPoint = v1
-		manifold.points[0].localPoint = circleB.m_p
-		manifold.points[0].id.key = 0
-	} else if u2 <= 0.0f {
-		if b2DistanceSquared(cLocal, v2) > radius * radius, return
+        manifold.pointCount = 1
+        manifold.type = b2ManifoldType::e_faceA
+        manifold.localNormal = cLocal - v1
+        manifold.localNormal.Normalize()
+        manifold.localPoint = v1
+        manifold.points[0].localPoint = circleB.m_p
+        manifold.points[0].id.key = 0
+    } else if u2 <= 0.0f {
+        if b2DistanceSquared(cLocal, v2) > radius * radius, return
 
-		manifold.pointCount = 1
-		manifold.type = b2ManifoldType::e_faceA
-		manifold.localNormal = cLocal - v2
-		manifold.localNormal.Normalize()
-		manifold.localPoint = v2
-		manifold.points[0].localPoint = circleB.m_p
-		manifold.points[0].id.key = 0
-	} else {
-		faceCenter POD b2Vec2 = (v1 + v2) * 0.5f
-		s float = b2Dot(cLocal - faceCenter, normals[vertIndex1])
-		if s > radius, return
+        manifold.pointCount = 1
+        manifold.type = b2ManifoldType::e_faceA
+        manifold.localNormal = cLocal - v2
+        manifold.localNormal.Normalize()
+        manifold.localPoint = v2
+        manifold.points[0].localPoint = circleB.m_p
+        manifold.points[0].id.key = 0
+    } else {
+        faceCenter POD b2Vec2 = (v1 + v2) * 0.5f
+        s float = b2Dot(cLocal - faceCenter, normals[vertIndex1])
+        if s > radius, return
 
-		manifold.pointCount = 1
-		manifold.type = b2ManifoldType::e_faceA
-		manifold.localNormal = normals[vertIndex1]
-		manifold.localPoint = faceCenter
-		manifold.points[0].localPoint = circleB.m_p
-		manifold.points[0].id.key = 0
+        manifold.pointCount = 1
+        manifold.type = b2ManifoldType::e_faceA
+        manifold.localNormal = normals[vertIndex1]
+        manifold.localPoint = faceCenter
+        manifold.points[0].localPoint = circleB.m_p
+        manifold.points[0].id.key = 0
 	}
 }

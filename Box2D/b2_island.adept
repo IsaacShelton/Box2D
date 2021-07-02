@@ -145,22 +145,22 @@ REQUIRES:
 /// This is an internal class.
 struct b2Island (
     m_allocator *b2StackAllocator,
-	m_listener *b2ContactListener,
+    m_listener *b2ContactListener,
 
-	m_bodies **b2Body,
-	m_contacts **b2Contact,
-	m_joints **b2Joint,
+    m_bodies **b2Body,
+    m_contacts **b2Contact,
+    m_joints **b2Joint,
 
-	m_positions *b2Position,
-	m_velocities *b2Velocity,
+    m_positions *b2Position,
+    m_velocities *b2Velocity,
 
-	m_bodyCount int,
-	m_jointCount int,
-	m_contactCount int,
+    m_bodyCount int,
+    m_jointCount int,
+    m_contactCount int,
 
-	m_bodyCapacity int,
-	m_contactCapacity int,
-	m_jointCapacity int
+    m_bodyCapacity int,
+    m_contactCapacity int,
+    m_jointCapacity int
 ) {
     func __defer__ {
         // Warning: the order should reverse the constructor order.
@@ -172,10 +172,10 @@ struct b2Island (
     }
 
     func Clear() void {
-		this.m_bodyCount = 0
-		this.m_contactCount = 0
-		this.m_jointCount = 0
-	}
+        this.m_bodyCount = 0
+        this.m_contactCount = 0
+        this.m_jointCount = 0
+    }
 
     func Solve(profile *b2Profile, in step *b2TimeStep, in gravity *b2Vec2, allowSleep bool) void {
         timer POD b2Timer = b2Timer()
@@ -353,9 +353,9 @@ struct b2Island (
         }
     }
 
-	func SolveTOI(in subStep *b2TimeStep, toiIndexA, toiIndexB int) void {
-        b2Assert(toiIndexA < this.m_bodyCount)
-        b2Assert(toiIndexB < this.m_bodyCount)
+    func SolveTOI(in subStep *b2TimeStep, toiIndexA, toiIndexB int) void {
+        b2Assert(toiIndexA < this.m_bodyCount, #get __file__, #get __line__, 'b2Assert(toiIndexA < this.m_bodyCount)')
+        b2Assert(toiIndexB < this.m_bodyCount, #get __file__, #get __line__, 'b2Assert(toiIndexB < this.m_bodyCount)')
 
         // Initialize the body state.
         for(i int = 0; i < this.m_bodyCount; ++i){
@@ -477,24 +477,24 @@ struct b2Island (
         this.Report(contactSolver.m_velocityConstraints)
     }
 
-	func Add(inout body *b2Body) void {
-		b2Assert(this.m_bodyCount < this.m_bodyCapacity)
-		body.m_islandIndex = this.m_bodyCount
-		this.m_bodies[this.m_bodyCount] = body
-		++this.m_bodyCount
-	}
+    func Add(inout body *b2Body) void {
+        b2Assert(this.m_bodyCount < this.m_bodyCapacity, #get __file__, #get __line__, 'b2Assert(this.m_bodyCount < this.m_bodyCapacity)')
+        body.m_islandIndex = this.m_bodyCount
+        this.m_bodies[this.m_bodyCount] = body
+        ++this.m_bodyCount
+    }
 
-	func Add(contact *b2Contact) void {
-		b2Assert(this.m_contactCount < this.m_contactCapacity)
-		this.m_contacts[this.m_contactCount++] = contact
-	}
+    func Add(contact *b2Contact) void {
+        b2Assert(this.m_contactCount < this.m_contactCapacity, #get __file__, #get __line__, 'b2Assert(this.m_contactCount < this.m_contactCapacity)')
+        this.m_contacts[this.m_contactCount++] = contact
+    }
 
-	func Add(joint *b2Joint) void {
-		b2Assert(this.m_jointCount < this.m_jointCapacity)
-		this.m_joints[this.m_jointCount++] = joint
-	}
+    func Add(joint *b2Joint) void {
+        b2Assert(this.m_jointCount < this.m_jointCapacity, #get __file__, #get __line__, 'b2Assert(this.m_jointCount < this.m_jointCapacity)')
+        this.m_joints[this.m_jointCount++] = joint
+    }
 
-	func Report(constraints *b2ContactVelocityConstraint) void {
+    func Report(constraints *b2ContactVelocityConstraint) void {
         if this.m_listener == null, return
 
         for(i int = 0; i < this.m_contactCount; ++i){
@@ -517,20 +517,20 @@ struct b2Island (
 
 func b2Island(uninitialized *b2Island, bodyCapacity, contactCapacity, jointCapacity int, allocator *b2StackAllocator, listener *b2ContactListener) *b2Island {
     uninitialized.m_bodyCapacity = bodyCapacity
-	uninitialized.m_contactCapacity = contactCapacity
-	uninitialized.m_jointCapacity = jointCapacity
-	uninitialized.m_bodyCount = 0
-	uninitialized.m_contactCount = 0
-	uninitialized.m_jointCount = 0
+    uninitialized.m_contactCapacity = contactCapacity
+    uninitialized.m_jointCapacity = jointCapacity
+    uninitialized.m_bodyCount = 0
+    uninitialized.m_contactCount = 0
+    uninitialized.m_jointCount = 0
 
-	uninitialized.m_allocator = allocator
-	uninitialized.m_listener = listener
+    uninitialized.m_allocator = allocator
+    uninitialized.m_listener = listener
 
-	uninitialized.m_bodies = uninitialized.m_allocator.Allocate(bodyCapacity * sizeof *b2Body) as **b2Body
-	uninitialized.m_contacts = uninitialized.m_allocator.Allocate(contactCapacity * sizeof *b2Contact) as **b2Contact
-	uninitialized.m_joints = uninitialized.m_allocator.Allocate(jointCapacity * sizeof *b2Joint) as **b2Joint
+    uninitialized.m_bodies = uninitialized.m_allocator.Allocate(bodyCapacity * sizeof *b2Body) as **b2Body
+    uninitialized.m_contacts = uninitialized.m_allocator.Allocate(contactCapacity * sizeof *b2Contact) as **b2Contact
+    uninitialized.m_joints = uninitialized.m_allocator.Allocate(jointCapacity * sizeof *b2Joint) as **b2Joint
 
-	uninitialized.m_velocities = uninitialized.m_allocator.Allocate(uninitialized.m_bodyCapacity * sizeof b2Velocity) as *b2Velocity
-	uninitialized.m_positions = uninitialized.m_allocator.Allocate(uninitialized.m_bodyCapacity * sizeof b2Position) as *b2Position
+    uninitialized.m_velocities = uninitialized.m_allocator.Allocate(uninitialized.m_bodyCapacity * sizeof b2Velocity) as *b2Velocity
+    uninitialized.m_positions = uninitialized.m_allocator.Allocate(uninitialized.m_bodyCapacity * sizeof b2Position) as *b2Position
     return uninitialized
 }

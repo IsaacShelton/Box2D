@@ -56,8 +56,8 @@ struct b2StackAllocator (
     m_entryCount int
 ) {
     verbatim func __defer__ {
-        b2Assert(this.m_index == 0)
-	    b2Assert(this.m_entryCount == 0)
+        b2Assert(this.m_index == 0, #get __file__, #get __line__, 'b2Assert(this.m_index == 0)')
+        b2Assert(this.m_entryCount == 0, #get __file__, #get __line__, 'b2Assert(this.m_entryCount == 0)')
 
         #if b2_stack_allocator_use_heap
             b2Free(this.m_data)
@@ -65,7 +65,7 @@ struct b2StackAllocator (
     }
 
     func Allocate(size int) ptr {
-        b2Assert(this.m_entryCount < b2_maxStackEntries)
+        b2Assert(this.m_entryCount < b2_maxStackEntries, #get __file__, #get __line__, 'b2Assert(this.m_entryCount < b2_maxStackEntries)')
 
         entry *b2StackEntry = this.m_entries at this.m_entryCount
         entry.size = size
@@ -92,9 +92,9 @@ struct b2StackAllocator (
     }
 
     func Free(p ptr) void {
-        b2Assert(this.m_entryCount > 0)
+        b2Assert(this.m_entryCount > 0, #get __file__, #get __line__, 'b2Assert(this.m_entryCount > 0)')
         entry *b2StackEntry = this.m_entries at (this.m_entryCount - 1)
-        b2Assert(p == entry.data)
+        b2Assert(p == entry.data, #get __file__, #get __line__, 'b2Assert(p == entry.data)')
 
         if entry.usedMalloc {
             b2Free(p)
@@ -117,7 +117,7 @@ func b2StackAllocator(uninitialized *b2StackAllocator) void {
     #end
 
     uninitialized.m_index = 0
-	uninitialized.m_allocation = 0
-	uninitialized.m_maxAllocation = 0
-	uninitialized.m_entryCount = 0
+    uninitialized.m_allocation = 0
+    uninitialized.m_maxAllocation = 0
+    uninitialized.m_entryCount = 0
 }

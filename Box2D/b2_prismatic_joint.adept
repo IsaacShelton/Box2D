@@ -77,38 +77,38 @@ struct b2PrismaticJointDef (
     struct b2JointDef,
 
     /// The local anchor point relative to bodyA's origin.
-	localAnchorA b2Vec2,
+    localAnchorA b2Vec2,
 
-	/// The local anchor point relative to bodyB's origin.
-	localAnchorB b2Vec2,
+    /// The local anchor point relative to bodyB's origin.
+    localAnchorB b2Vec2,
 
-	/// The local translation unit axis in bodyA.
-	localAxisA b2Vec2,
+    /// The local translation unit axis in bodyA.
+    localAxisA b2Vec2,
 
-	/// The constrained angle between the bodies: bodyB_angle - bodyA_angle.
-	referenceAngle float,
+    /// The constrained angle between the bodies: bodyB_angle - bodyA_angle.
+    referenceAngle float,
 
-	/// Enable/disable the joint limit.
-	enableLimit bool,
+    /// Enable/disable the joint limit.
+    enableLimit bool,
 
-	/// The lower translation limit, usually in meters.
-	lowerTranslation float,
+    /// The lower translation limit, usually in meters.
+    lowerTranslation float,
 
-	/// The upper translation limit, usually in meters.
-	upperTranslation float,
+    /// The upper translation limit, usually in meters.
+    upperTranslation float,
 
-	/// Enable/disable the joint motor.
-	enableMotor bool,
+    /// Enable/disable the joint motor.
+    enableMotor bool,
 
-	/// The maximum motor torque, usually in N-m.
-	maxMotorForce float,
+    /// The maximum motor torque, usually in N-m.
+    maxMotorForce float,
 
-	/// The desired motor speed in radians per second.
-	motorSpeed float
+    /// The desired motor speed in radians per second.
+    motorSpeed float
 ) {
     /// Initialize the bodies, anchors, axis, and reference angle using the world
-	/// anchor and unit world axis.
-	func Initialize(in bA, bB *b2Body, in anchor, axis *b2Vec2) void {
+    /// anchor and unit world axis.
+    func Initialize(in bA, bB *b2Body, in anchor, axis *b2Vec2) void {
         this.bodyA = bA
         this.bodyB = bB
         this.localAnchorA = bA.GetLocalPoint(anchor)
@@ -143,36 +143,36 @@ struct b2PrismaticJoint (
     struct b2Joint,
 
     m_localAnchorA b2Vec2,
-	m_localAnchorB b2Vec2,
-	m_localXAxisA b2Vec2,
-	m_localYAxisA b2Vec2,
-	m_referenceAngle float,
-	m_impulse b2Vec2,
-	m_motorImpulse float,
-	m_lowerImpulse float,
-	m_upperImpulse float,
-	m_lowerTranslation float,
-	m_upperTranslation float,
-	m_maxMotorForce float,
-	m_motorSpeed float,
-	m_enableLimit bool,
-	m_enableMotor bool,
+    m_localAnchorB b2Vec2,
+    m_localXAxisA b2Vec2,
+    m_localYAxisA b2Vec2,
+    m_referenceAngle float,
+    m_impulse b2Vec2,
+    m_motorImpulse float,
+    m_lowerImpulse float,
+    m_upperImpulse float,
+    m_lowerTranslation float,
+    m_upperTranslation float,
+    m_maxMotorForce float,
+    m_motorSpeed float,
+    m_enableLimit bool,
+    m_enableMotor bool,
 
-	// Solver temp
-	m_indexA int,
-	m_indexB int,
-	m_localCenterA b2Vec2,
-	m_localCenterB b2Vec2,
-	m_invMassA float,
-	m_invMassB float,
-	m_invIA float,
-	m_invIB float,
-	m_axis, m_perp b2Vec2,
-	m_s1, m_s2 float,
-	m_a1, m_a2 float,
-	m_K b2Mat22,
-	m_translation float,
-	m_axialMass float
+    // Solver temp
+    m_indexA int,
+    m_indexB int,
+    m_localCenterA b2Vec2,
+    m_localCenterB b2Vec2,
+    m_invMassA float,
+    m_invMassB float,
+    m_invIA float,
+    m_invIB float,
+    m_axis, m_perp b2Vec2,
+    m_s1, m_s2 float,
+    m_a1, m_a2 float,
+    m_K b2Mat22,
+    m_translation float,
+    m_axialMass float
 ) {
     // (override)
     func GetAnchorA() b2Vec2 {
@@ -180,34 +180,34 @@ struct b2PrismaticJoint (
     }
 
     // (override)
-	func GetAnchorB() b2Vec2 {
+    func GetAnchorB() b2Vec2 {
         return this.m_bodyB.GetWorldPoint(&this.m_localAnchorB)
     }
 
     // (override)
-	func GetReactionForce(inv_dt float) b2Vec2 {
+    func GetReactionForce(inv_dt float) b2Vec2 {
         return inv_dt * (this.m_impulse.x * this.m_perp + (this.m_motorImpulse + this.m_lowerImpulse - this.m_upperImpulse) * this.m_axis)
     }
 
     // (override)
-	func GetReactionTorque(inv_dt float) float {
+    func GetReactionTorque(inv_dt float) float {
         return inv_dt * this.m_impulse.y
     }
 
-	/// The local anchor point relative to bodyA's origin.
-	func GetLocalAnchorA() *b2Vec2 { return &this.m_localAnchorA; }
+    /// The local anchor point relative to bodyA's origin.
+    func GetLocalAnchorA() *b2Vec2 { return &this.m_localAnchorA; }
 
-	/// The local anchor point relative to bodyB's origin.
-	func GetLocalAnchorB() *b2Vec2 { return &this.m_localAnchorB; }
+    /// The local anchor point relative to bodyB's origin.
+    func GetLocalAnchorB() *b2Vec2 { return &this.m_localAnchorB; }
 
-	/// The local joint axis relative to bodyA.
-	func GetLocalAxisA() *b2Vec2 { return &this.m_localXAxisA; }
+    /// The local joint axis relative to bodyA.
+    func GetLocalAxisA() *b2Vec2 { return &this.m_localXAxisA; }
 
-	/// Get the reference angle.
-	func GetReferenceAngle() float { return this.m_referenceAngle; }
+    /// Get the reference angle.
+    func GetReferenceAngle() float { return this.m_referenceAngle; }
 
-	/// Get the current joint translation, usually in meters.
-	func GetJointTranslation() float {
+    /// Get the current joint translation, usually in meters.
+    func GetJointTranslation() float {
         pA POD b2Vec2 = this.m_bodyA.GetWorldPoint(&this.m_localAnchorA)
         pB POD b2Vec2 = this.m_bodyB.GetWorldPoint(&this.m_localAnchorB)
         d POD b2Vec2 = pB - pA
@@ -217,8 +217,8 @@ struct b2PrismaticJoint (
         return translation
     }
 
-	/// Get the current joint translation speed, usually in meters per second.
-	func GetJointSpeed() float {
+    /// Get the current joint translation speed, usually in meters per second.
+    func GetJointSpeed() float {
         bA *b2Body = this.m_bodyA
         bB *b2Body = this.m_bodyB
 
@@ -238,13 +238,13 @@ struct b2PrismaticJoint (
         return speed
     }
 
-	/// Is the joint limit enabled?
-	func IsLimitEnabled() bool {
+    /// Is the joint limit enabled?
+    func IsLimitEnabled() bool {
         return this.m_enableLimit
     }
 
-	/// Enable/disable the joint limit.
-	func EnableLimit(flag bool) void {
+    /// Enable/disable the joint limit.
+    func EnableLimit(flag bool) void {
         if flag != this.m_enableLimit {
             this.m_bodyA.SetAwake(true)
             this.m_bodyB.SetAwake(true)
@@ -254,19 +254,19 @@ struct b2PrismaticJoint (
         }
     }
 
-	/// Get the lower joint limit, usually in meters.
-	func GetLowerLimit() float {
+    /// Get the lower joint limit, usually in meters.
+    func GetLowerLimit() float {
         return this.m_lowerTranslation
     }
 
-	/// Get the upper joint limit, usually in meters.
-	func GetUpperLimit() float {
+    /// Get the upper joint limit, usually in meters.
+    func GetUpperLimit() float {
         return this.m_upperTranslation
     }
 
-	/// Set the joint limits, usually in meters.
-	func SetLimits(lower, upper float) void {
-        b2Assert(lower <= upper)
+    /// Set the joint limits, usually in meters.
+    func SetLimits(lower, upper float) void {
+        b2Assert(lower <= upper, #get __file__, #get __line__, 'b2Assert(lower <= upper)')
         if lower != this.m_lowerTranslation || upper != this.m_upperTranslation {
             this.m_bodyA.SetAwake(true)
             this.m_bodyB.SetAwake(true)
@@ -277,13 +277,13 @@ struct b2PrismaticJoint (
         }
     }
 
-	/// Is the joint motor enabled?
-	func IsMotorEnabled() bool {
+    /// Is the joint motor enabled?
+    func IsMotorEnabled() bool {
         return this.m_enableMotor
     }
 
-	/// Enable/disable the joint motor.
-	func EnableMotor(flag bool) void {
+    /// Enable/disable the joint motor.
+    func EnableMotor(flag bool) void {
         if flag != this.m_enableMotor {
             this.m_bodyA.SetAwake(true)
             this.m_bodyB.SetAwake(true)
@@ -291,8 +291,8 @@ struct b2PrismaticJoint (
         }
     }
 
-	/// Set the motor speed, usually in meters per second.
-	func SetMotorSpeed(speed float) void {
+    /// Set the motor speed, usually in meters per second.
+    func SetMotorSpeed(speed float) void {
         if speed != this.m_motorSpeed {
             this.m_bodyA.SetAwake(true)
             this.m_bodyB.SetAwake(true)
@@ -300,11 +300,11 @@ struct b2PrismaticJoint (
         }
     }
 
-	/// Get the motor speed, usually in meters per second.
-	func GetMotorSpeed() float { return this.m_motorSpeed; }
+    /// Get the motor speed, usually in meters per second.
+    func GetMotorSpeed() float { return this.m_motorSpeed; }
 
-	/// Set the maximum motor force, usually in N.
-	func SetMaxMotorForce(force float) void {
+    /// Set the maximum motor force, usually in N.
+    func SetMaxMotorForce(force float) void {
         if force != this.m_maxMotorForce {
             this.m_bodyA.SetAwake(true)
             this.m_bodyB.SetAwake(true)
@@ -312,16 +312,16 @@ struct b2PrismaticJoint (
         }
     }
 
-	func GetMaxMotorForce() float { return this.m_maxMotorForce; }
+    func GetMaxMotorForce() float { return this.m_maxMotorForce; }
 
-	/// Get the current motor force given the inverse time step, usually in N.
-	func GetMotorForce(inv_dt float) float {
+    /// Get the current motor force given the inverse time step, usually in N.
+    func GetMotorForce(inv_dt float) float {
         return inv_dt * this.m_motorImpulse
     }
 
-	/// Dump to b2Log
+    /// Dump to b2Log
     // (override)
-	func Dump() void {
+    func Dump() void {
         // FLT_DECIMAL_DIG == 9
 
         indexA int = this.m_bodyA.m_islandIndex
@@ -344,9 +344,9 @@ struct b2PrismaticJoint (
         b2Dump('  joints[%d] = m_world.CreateJoint(&jd);\n', this.m_index)
     }
 
-	///
+    ///
     // (override)
-	func Draw(draw *b2Draw) void {
+    func Draw(draw *b2Draw) void {
         xfA *b2Transform = this.m_bodyA.GetTransform()
         xfB *b2Transform = this.m_bodyB.GetTransform()
         pA POD b2Vec2 = b2Mul(xfA, this.m_localAnchorA)
@@ -486,7 +486,7 @@ struct b2PrismaticJoint (
     }
 
     // (override)
-	func SolveVelocityConstraints(in data *b2SolverData) void {
+    func SolveVelocityConstraints(in data *b2SolverData) void {
         vA POD b2Vec2 = data.velocities[this.m_indexA].v
         wA float = data.velocities[this.m_indexA].w
         vB POD b2Vec2 = data.velocities[this.m_indexB].v
@@ -592,7 +592,7 @@ struct b2PrismaticJoint (
     // We could take the active state from the velocity solver.However, the joint might push past the limit when the velocity
     // solver indicates the limit is inactive.
     // (override)
-	func SolvePositionConstraints(in data *b2SolverData) bool {
+    func SolvePositionConstraints(in data *b2SolverData) bool {
         cA POD b2Vec2 = data.positions[this.m_indexA].c
         aA float = data.positions[this.m_indexA].a
         cB POD b2Vec2 = data.positions[this.m_indexB].c
@@ -713,31 +713,31 @@ func b2Joint\CreateRaw\b2PrismaticJoint(out uninitialized *b2PrismaticJoint, in 
     b2Joint(uninitialized, definition as *b2JointDef)
 
     uninitialized.m_localAnchorA = definition.localAnchorA
-	uninitialized.m_localAnchorB = definition.localAnchorB
-	uninitialized.m_localXAxisA = definition.localAxisA
-	uninitialized.m_localXAxisA.Normalize()
-	uninitialized.m_localYAxisA = b2Cross(1.0f, uninitialized.m_localXAxisA)
-	uninitialized.m_referenceAngle = definition.referenceAngle
+    uninitialized.m_localAnchorB = definition.localAnchorB
+    uninitialized.m_localXAxisA = definition.localAxisA
+    uninitialized.m_localXAxisA.Normalize()
+    uninitialized.m_localYAxisA = b2Cross(1.0f, uninitialized.m_localXAxisA)
+    uninitialized.m_referenceAngle = definition.referenceAngle
 
-	uninitialized.m_impulse.SetZero()
-	uninitialized.m_axialMass = 0.0f
-	uninitialized.m_motorImpulse = 0.0f
-	uninitialized.m_lowerImpulse = 0.0f
-	uninitialized.m_upperImpulse = 0.0f
+    uninitialized.m_impulse.SetZero()
+    uninitialized.m_axialMass = 0.0f
+    uninitialized.m_motorImpulse = 0.0f
+    uninitialized.m_lowerImpulse = 0.0f
+    uninitialized.m_upperImpulse = 0.0f
 
-	uninitialized.m_lowerTranslation = definition.lowerTranslation
-	uninitialized.m_upperTranslation = definition.upperTranslation
+    uninitialized.m_lowerTranslation = definition.lowerTranslation
+    uninitialized.m_upperTranslation = definition.upperTranslation
 
-	b2Assert(uninitialized.m_lowerTranslation <= uninitialized.m_upperTranslation)
+    b2Assert(uninitialized.m_lowerTranslation <= uninitialized.m_upperTranslation, #get __file__, #get __line__, 'b2Assert(uninitialized.m_lowerTranslation <= uninitialized.m_upperTranslation)')
 
-	uninitialized.m_maxMotorForce = definition.maxMotorForce
-	uninitialized.m_motorSpeed = definition.motorSpeed
-	uninitialized.m_enableLimit = definition.enableLimit
-	uninitialized.m_enableMotor = definition.enableMotor
+    uninitialized.m_maxMotorForce = definition.maxMotorForce
+    uninitialized.m_motorSpeed = definition.motorSpeed
+    uninitialized.m_enableLimit = definition.enableLimit
+    uninitialized.m_enableMotor = definition.enableMotor
 
-	uninitialized.m_translation = 0.0f
-	uninitialized.m_axis.SetZero()
-	uninitialized.m_perp.SetZero()
+    uninitialized.m_translation = 0.0f
+    uninitialized.m_axis.SetZero()
+    uninitialized.m_perp.SetZero()
 
     return uninitialized
 }

@@ -81,13 +81,13 @@ struct b2Vec2 (x, y float) {
         this.y *= factor
     }
 
-	/// Get the length of this vector (the norm).
+    /// Get the length of this vector (the norm).
     func Length() float {
         return b2Sqrt(this.x * this.x + this.y * this.y)
     }
 
     /// Get the length squared. For performance, use this instead of
-	/// b2Vec2::Length (if possible).
+    /// b2Vec2::Length (if possible).
     func LengthSquared() float {
         return this.x * this.x + this.y * this.y
     }
@@ -285,7 +285,7 @@ struct b2Mat22 (ex, ey b2Vec2) {
     }
 
     /// Solve A * x = b, where b is a column vector. This is more efficient
-	/// than computing the inverse in one-shot cases.
+    /// than computing the inverse in one-shot cases.
     func Solve(b POD b2Vec2) b2Vec2 {
         a11 float = this.ex.x
         a12 float = this.ey.x
@@ -331,7 +331,7 @@ struct b2Mat33 (ex, ey, ez b2Vec3) {
     }
 
     /// Solve A * x = b, where b is a column vector. This is more efficient
-	/// than computing the inverse in one-shot cases.
+    /// than computing the inverse in one-shot cases.
     func Solve33(b POD b2Vec3) b2Vec3 {
         det float = b2Dot(this.ex, b2Cross(this.ey, this.ez))
 
@@ -347,8 +347,8 @@ struct b2Mat33 (ex, ey, ez b2Vec3) {
     }
 
     /// Solve A * x = b, where b is a column vector. This is more efficient
-	/// than computing the inverse in one-shot cases. Solve only the upper
-	/// 2-by-2 matrix equation.
+    /// than computing the inverse in one-shot cases. Solve only the upper
+    /// 2-by-2 matrix equation.
     func Solve22(b POD b2Vec2) b2Vec2 {
         a11 float = this.ex.x
         a12 float = this.ey.x
@@ -367,7 +367,7 @@ struct b2Mat33 (ex, ey, ez b2Vec3) {
     }
 
     /// Get the inverse of this matrix as a 2-by-2.
-	/// Returns the zero matrix if singular.
+    /// Returns the zero matrix if singular.
     func GetInverse22(out M *b2Mat33) void {
         a float = this.ex.x
         b float = this.ey.x
@@ -393,7 +393,7 @@ struct b2Mat33 (ex, ey, ez b2Vec3) {
     }
 
     /// Get the symmetric inverse of this matrix as a 3-by-3.
-	/// Returns the zero matrix if singular.
+    /// Returns the zero matrix if singular.
     func GetSymInverse33(out M *b2Mat33) void {
         det float = b2Dot(this.ex, b2Cross(this.ey, this.ez))
 
@@ -505,13 +505,13 @@ struct b2Sweep (
     a0, a float,        ///< world angles
 
     /// Fraction of the current time step in the range [0,1]
-	/// c0 and a0 are the positions at alpha0.
+    /// c0 and a0 are the positions at alpha0.
     alpha0 float
 ) {
     
     /// Get the interpolated transform at a specific time.
-	/// @param transform the output transform
-	/// @param beta is a factor in [0,1], where 0 indicates alpha0.
+    /// @param transform the output transform
+    /// @param beta is a factor in [0,1], where 0 indicates alpha0.
     func GetTransform(out transform *b2Transform, beta float) void {
         // https://fgiesen.wordpress.com/2012/08/15/linear-interpolation-past-present-and-future/
         transform.p = this.c0 * (1.0f - beta) + this.c * beta
@@ -519,13 +519,13 @@ struct b2Sweep (
         transform.q.Set(angle)
 
         // Shift to origin
-	    transform.p.SubtractAssign(b2Mul(transform.q, this.localCenter))
+        transform.p.SubtractAssign(b2Mul(transform.q, this.localCenter))
     }
 
     /// Advance the sweep forward, yielding a new initial state.
-	/// @param alpha the new initial time.
+    /// @param alpha the new initial time.
     func Advance(alpha float) void {
-        b2Assert(this.alpha0 < 1.0f)
+        b2Assert(this.alpha0 < 1.0f, #get __file__, #get __line__, 'b2Assert(this.alpha0 < 1.0f)')
 
         beta float = (alpha - this.alpha0) / (1.0f - this.alpha0)
         this.c0.AddAssign((this.c - this.c0) * beta)
@@ -636,21 +636,21 @@ func b2Mul22(A POD b2Mat33, v POD b2Vec2) b2Vec2 {
 /// Multiply two rotations: q * r
 func b2Mul(q, r POD b2Rot) b2Rot {
     // [qc -qs] * [rc -rs] = [qc*rc-qs*rs -qc*rs-qs*rc]
-	// [qs  qc]   [rs  rc]   [qs*rc+qc*rs -qs*rs+qc*rc]
-	// s = qs * rc + qc * rs
-	// c = qc * rc - qs * rs
+    // [qs  qc]   [rs  rc]   [qs*rc+qc*rs -qs*rs+qc*rc]
+    // s = qs * rc + qc * rs
+    // c = qc * rc - qs * rs
     qr POD b2Rot = undef
     qr.s = q.s * r.c + q.c * r.s
-	qr.c = q.c * r.c - q.s * r.s
+    qr.c = q.c * r.c - q.s * r.s
     return qr
 }
 
 /// Transpose multiply two rotations: qT * r
 func b2MulT(q, r POD b2Rot) b2Rot {
     // [ qc qs] * [rc -rs] = [qc*rc+qs*rs -qc*rs+qs*rc]
-	// [-qs qc]   [rs  rc]   [-qs*rc+qc*rs qs*rs+qc*rc]
-	// s = qc * rs - qs * rc
-	// c = qc * rc + qs * rs
+    // [-qs qc]   [rs  rc]   [-qs*rc+qc*rs qs*rs+qc*rc]
+    // s = qc * rs - qs * rc
+    // c = qc * rc + qs * rs
     qr POD b2Rot = undef
     qr.s = q.c * r.s - q.s * r.c
     qr.c = q.c * r.c + q.s * r.s
@@ -700,7 +700,7 @@ func b2MulT(T *b2Transform, v *b2Vec2) b2Vec2 {
 func b2Mul(A, B *b2Transform) b2Transform {
     C POD b2Transform = undef
     C.q = b2Mul(A.q, B.q)
-	C.p = b2Mul(A.q, B.p) + A.p
+    C.p = b2Mul(A.q, B.p) + A.p
     return C
 }
 
@@ -709,8 +709,8 @@ func b2Mul(A, B *b2Transform) b2Transform {
 func b2MulT(A, B *b2Transform) b2Transform {
     C POD b2Transform = undef
     C.q = b2MulT(A.q, B.q)
-	C.p = b2MulT(A.q, B.p - A.p)
-	return C
+    C.p = b2MulT(A.q, B.p - A.p)
+    return C
 }
 
 func b2Abs(a $T~__number__) $T {
@@ -762,11 +762,11 @@ func b2Swap(inout a, b *$T) void {
 /// largest power of 2. For a 32-bit value:"
 func b2NextPowerOfTwo(x uint) uint {
     x |= x >> 1
-	x |= x >> 2
-	x |= x >> 4
-	x |= x >> 8
-	x |= x >> 16
-	return x + 1
+    x |= x >> 2
+    x |= x >> 4
+    x |= x >> 8
+    x |= x >> 16
+    return x + 1
 }
 
 func b2IsPowerOfTwo(x uint) bool {
