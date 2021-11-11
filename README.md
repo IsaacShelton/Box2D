@@ -1,6 +1,9 @@
 # Box2D
 Port of Box2D for Adept
 
+### How to add to your project
+You can add Box2D to your project by running `adept install box2d`
+
 ### Cross Platform
 Runs on Windows and Mac without any modifications
 
