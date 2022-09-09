@@ -1,4 +1,6 @@
 
+pragma compiler_version '2.5'
+
 import basics
 import "../../Box2D/box2d.adept"
 
